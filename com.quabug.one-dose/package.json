@@ -1,0 +1,9 @@
+{
+  "name": "com.quabug.one-dose",
+  "version": "1.0.0",
+  "unity": "2020.3",
+  "displayName": "One Dose DI",
+  "dependencies": {},
+  "description": "A single file DI container",
+  "type": "library"
+}
