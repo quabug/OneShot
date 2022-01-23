@@ -145,6 +145,19 @@ namespace OneShot
         {
             InjectAll(container, instance, typeof(T));
         }
+
+        public static TReturn InjectCall<TFunc, TReturn>([NotNull] this Container container, TFunc func) where TFunc : Delegate
+        {
+            var invoke = func.GetType().GetMethod("Invoke");
+            if (!typeof(TReturn).IsAssignableFrom(invoke.ReturnType)) throw new ArgumentException();
+            return (TReturn) invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
+        }
+
+        public static void InjectCall<TAction>([NotNull] this Container container, TAction action) where TAction : Delegate
+        {
+            var invoke = action.GetType().GetMethod("Invoke");
+            invoke.Invoke(action, container.ResolveParameterInfos(invoke.GetParameters()));
+        }
     }
 
     class TypeInjector

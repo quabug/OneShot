@@ -284,5 +284,25 @@ namespace OneShot.Test
             var container = new Container();
             Assert.Catch<Exception>(() => container.InjectAll(new Injected()));
         }
+
+        [Test]
+        public void should_inject_and_call_function()
+        {
+            var container = new Container();
+            Func<int, int> returnInt = value => value * 2;
+            container.RegisterInstance(10);
+            Assert.AreEqual(20, container.InjectCall<Func<int, int>, int>(returnInt));
+        }
+
+        [Test]
+        public void should_inject_and_call_action()
+        {
+            var container = new Container();
+            var intValue = 0;
+            Action<int> action = value => intValue = value * 2;
+            container.RegisterInstance(10);
+            container.InjectCall(action);
+            Assert.AreEqual(20, intValue);
+        }
     }
 }
