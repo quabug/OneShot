@@ -72,9 +72,9 @@ namespace OneShot
             resolvers[type] = new Creator(creator);
         }
 
-        public static void Register<T>([NotNull] this Container container, [NotNull] Func<T> creator)
+        public static void Register<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
         {
-            container.Register(typeof(T), () => creator());
+            container.Register(typeof(T), creator);
         }
 
         public static void RegisterInstance([NotNull] this Container container, [NotNull] Type type, [NotNull] object instance)
@@ -110,7 +110,7 @@ namespace OneShot
             container.RegisterSingleton(typeof(T));
         }
 
-        public static void RegisterSingleton<T>([NotNull] this Container container, [NotNull] Func<object> creator)
+        public static void RegisterSingleton<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
         {
             container.RegisterSingleton(typeof(T), creator);
         }

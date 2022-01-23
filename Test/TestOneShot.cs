@@ -74,8 +74,8 @@ namespace OneShot.Test
         public void should_resolve_singleton_func()
         {
             var container = new Container();
-            Func<object> createTypeA = () => new TypeA();
-            container.RegisterSingleton<TypeA>(createTypeA);
+            Func<TypeA> createTypeA = () => new TypeA();
+            container.RegisterSingleton(createTypeA);
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
 
