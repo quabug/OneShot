@@ -1,6 +1,6 @@
 {
-  "name": "OneDose",
-  "rootNamespace": "OneDose",
+  "name": "OneShot",
+  "rootNamespace": "OneShot",
   "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],

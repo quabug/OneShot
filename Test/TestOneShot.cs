@@ -1,9 +1,9 @@
 using System;
 using NUnit.Framework;
 
-namespace OneDose.Test
+namespace OneShot.Test
 {
-    public class TestOneDose
+    public class TestOneShot
     {
         interface InterfaceA {}
         class TypeA : InterfaceA {}

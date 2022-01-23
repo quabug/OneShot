@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using JetBrains.Annotations;
 
-namespace OneDose
+namespace OneShot
 {
     public sealed class Container {}
 

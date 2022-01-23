@@ -1,8 +1,8 @@
 {
-  "name": "com.quabug.one-dose",
+  "name": "com.quabug.one-shot-injection",
   "version": "1.0.0",
   "unity": "2020.3",
-  "displayName": "One Dose DI",
+  "displayName": "One Shot Dependency Injection",
   "dependencies": {},
   "description": "A single file DI container",
   "type": "library"
