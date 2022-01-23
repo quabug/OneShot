@@ -71,6 +71,15 @@ namespace OneShot.Test
         }
 
         [Test]
+        public void should_resolve_singleton_func()
+        {
+            var container = new Container();
+            Func<object> createTypeA = () => new TypeA();
+            container.RegisterSingleton<TypeA>(createTypeA);
+            Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
+        }
+
+        [Test]
         public void should_resolve_transient()
         {
             var container = new Container();
