@@ -44,20 +44,13 @@ namespace OneShot
             return (T) container.Resolve(typeof(T));
         }
 
-        public static void Register(
-            [NotNull] this Container container,
-            [NotNull] Type type,
-            [NotNull] Func<object> creator
-        )
+        public static void Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
         {
             var resolvers = _containerResolvers.GetOrCreate(container, () => new Dictionary<Type, Creator>());
             resolvers.Add(type, new Creator(creator));
         }
 
-        public static void Register<T>(
-            [NotNull] this Container container,
-            [NotNull] Func<T> creator
-        )
+        public static void Register<T>([NotNull] this Container container, [NotNull] Func<T> creator)
         {
             container.Register(typeof(T), () => creator());
         }
@@ -70,7 +63,12 @@ namespace OneShot
         public static void RegisterSingleton([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
-            var lazyValue = new Lazy<object>(CreateInstance(container, ci));
+            container.RegisterSingleton(type, CreateInstance(container, ci));
+        }
+
+        public static void RegisterSingleton([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
+        {
+            var lazyValue = new Lazy<object>(creator);
             container.Register(type, () => lazyValue.Value);
         }
 
@@ -88,6 +86,11 @@ namespace OneShot
         public static void RegisterSingleton<T>([NotNull] this Container container)
         {
             container.RegisterSingleton(typeof(T));
+        }
+
+        public static void RegisterSingleton<T>([NotNull] this Container container, [NotNull] Func<object> creator)
+        {
+            container.RegisterSingleton(typeof(T), creator);
         }
 
         public static void RegisterTransient<T>([NotNull] this Container container)
