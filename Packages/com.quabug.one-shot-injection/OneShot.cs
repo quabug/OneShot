@@ -185,6 +185,8 @@ namespace OneShot
                     case MethodInfo method: // TODO: check method validation
                         _methods.Add(method);
                         break;
+                    default:
+                        throw new NotSupportedException();
                 }
             }
         }
