@@ -19,7 +19,7 @@ var container = new Container();
 var child = container.CreateChildContainer();
 ```
 
-### Register Types
+### [Register Types](https://github.com/quabug/OneShot/blob/8b58c9721d06247ad4991489099ce028fefa21ff/Packages/com.quabug.one-shot-injection/OneShot.cs#L47)
 ``` c#
 container.RegisterInstance<int>(10); // register instance of int
 container.RegisterSingleton<Foo>(); // register a singleton of `Foo`
@@ -28,13 +28,13 @@ container.Register<Func<int>>(() => container.Resolve<Foo>().GetIntValue); // re
 conatiner.Register<IFoo>(() => container.Resolve<Foo>()); // register interface of `IFoo`
 ```
 
-### Resolve
+### [Resolve](https://github.com/quabug/OneShot/blob/8b58c9721d06247ad4991489099ce028fefa21ff/Packages/com.quabug.one-shot-injection/OneShot.cs#L37)
 ``` c#
 container.Resolve<int>();
 container.Resolve<IFoo>();
 ```
 
-### InjectAttribute
+### [InjectAttribute](https://github.com/quabug/OneShot/blob/8b58c9721d06247ad4991489099ce028fefa21ff/Packages/com.quabug.one-shot-injection/OneShot.cs#L12)
 ``` c#
 class Foo
 {
