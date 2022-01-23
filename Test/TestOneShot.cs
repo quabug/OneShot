@@ -194,6 +194,15 @@ namespace OneShot.Test
         }
 
         [Test]
+        public void should_override_register()
+        {
+            var container = new Container();
+            container.RegisterInstance(10);
+            container.RegisterInstance(20);
+            Assert.AreEqual(20, container.Resolve<int>());
+        }
+
+        [Test]
         public void should_throw_if_cannot_resolve()
         {
             var container = new Container();
