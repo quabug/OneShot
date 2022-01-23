@@ -291,7 +291,7 @@ namespace OneShot.Test
             var container = new Container();
             Func<int, int> returnInt = value => value * 2;
             container.RegisterInstance(10);
-            Assert.AreEqual(20, container.InjectCall<Func<int, int>, int>(returnInt));
+            Assert.AreEqual(20, container.InjectCall<int>(returnInt));
         }
 
         [Test]
