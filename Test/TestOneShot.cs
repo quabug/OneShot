@@ -309,7 +309,7 @@ namespace OneShot.Test
             var container = new Container();
             Func<int, int> returnInt = value => value * 2;
             container.RegisterInstance(10);
-            Assert.AreEqual(20, container.InjectCall<int>(returnInt));
+            Assert.AreEqual(20, container.Call<int>(returnInt));
         }
 
         [Test]
@@ -319,8 +319,16 @@ namespace OneShot.Test
             var intValue = 0;
             Action<int> action = value => intValue = value * 2;
             container.RegisterInstance(10);
-            container.InjectCall(action);
+            container.CallAction(action);
             Assert.AreEqual(20, intValue);
+        }
+
+        [Test]
+        public void should_instantiate_by_type()
+        {
+            var container = new Container();
+            container.RegisterSingleton<TypeA>();
+            Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
         }
     }
 }
