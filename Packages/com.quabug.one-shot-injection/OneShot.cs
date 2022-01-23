@@ -120,6 +120,38 @@ namespace OneShot
             container.RegisterTransient(typeof(T));
         }
 
+        public static object Call([NotNull] this Container container, Delegate func)
+        {
+            var invoke = func.GetType().GetMethod("Invoke");
+            if (invoke.ReturnType == typeof(void)) throw new ArgumentException();
+            return invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
+        }
+
+        public static TReturn Call<TReturn>([NotNull] this Container container, Delegate func)
+        {
+            var invoke = func.GetType().GetMethod("Invoke");
+            if (!typeof(TReturn).IsAssignableFrom(invoke.ReturnType)) throw new ArgumentException();
+            return (TReturn) invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
+        }
+
+        public static void CallAction([NotNull] this Container container, Delegate action)
+        {
+            var invoke = action.GetType().GetMethod("Invoke");
+            invoke.Invoke(action, container.ResolveParameterInfos(invoke.GetParameters()));
+        }
+
+        public static object Instantiate([NotNull] this Container container, Type type)
+        {
+            var ci = FindConstructorInfo(type);
+            var parameters = ci.GetParameters();
+            return ci.Invoke(container.ResolveParameterInfos(parameters));
+        }
+
+        public static T Instantiate<T>([NotNull] this Container container)
+        {
+            return (T) container.Instantiate(typeof(T));
+        }
+
         private static ConstructorInfo FindConstructorInfo(Type type)
         {
             var constructors = type.GetConstructors();
@@ -148,7 +180,7 @@ namespace OneShot
         {
             var creator = FindCreatorInHierarchy(container, parameter.ParameterType);
             if (creator.HasValue) return creator.Value.CreatorFunc();
-            return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException();
+            return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
         internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters)
@@ -169,19 +201,6 @@ namespace OneShot
         public static void InjectAll<T>([NotNull] this Container container, T instance)
         {
             InjectAll(container, instance, typeof(T));
-        }
-
-        public static TReturn InjectCall<TReturn>([NotNull] this Container container, Delegate func)
-        {
-            var invoke = func.GetType().GetMethod("Invoke");
-            if (!typeof(TReturn).IsAssignableFrom(invoke.ReturnType)) throw new ArgumentException();
-            return (TReturn) invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
-        }
-
-        public static void InjectCall([NotNull] this Container container, Delegate action)
-        {
-            var invoke = action.GetType().GetMethod("Invoke");
-            invoke.Invoke(action, container.ResolveParameterInfos(invoke.GetParameters()));
         }
     }
 
