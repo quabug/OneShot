@@ -192,5 +192,97 @@ namespace OneDose.Test
             Assert.Catch<Exception>(() => container.Resolve<TypeA>());
             Assert.Catch<Exception>(() => container.Resolve<DefaultConstructor>());
         }
+
+        class A
+        {
+            public A(B b) {}
+        }
+
+        class B
+        {
+            public B(A a) {}
+        }
+
+        [Test, Ignore("not implemented yet")]
+        public void should_throw_on_circular_dependency()
+        {
+            var container = new Container();
+            container.RegisterTransient<A>();
+            container.RegisterTransient<B>();
+            Assert.Catch<Exception>(() => container.Resolve<A>());
+        }
+
+        class Injected
+        {
+            [Inject] public int Int;
+            [Inject] public float Float { get; private set; }
+            [field: Inject] public Double Double { get; }
+
+            public int A;
+            public double B;
+
+            [Inject]
+            public void Init(int a, double b)
+            {
+                A = a;
+                B = b;
+            }
+
+            public float C;
+            public long D;
+
+            [Inject]
+            public int Init(float c, long d = 20)
+            {
+                C = c;
+                D = d;
+                return (int)d;
+            }
+
+            public int E;
+            void Init(int e)
+            {
+                E = e;
+            }
+        }
+
+        [Test]
+        public void should_inject_marked_members()
+        {
+            var container = new Container();
+            container.RegisterInstance<int>(10);
+            container.RegisterInstance<float>(100f);
+            container.RegisterInstance<double>(0.999);
+            var instance = new Injected();
+            container.InjectAll(instance);
+            Assert.AreEqual(10, instance.Int);
+            Assert.AreEqual(100f, instance.Float);
+            Assert.AreEqual(0.999, instance.Double);
+            Assert.AreEqual(10, instance.A);
+            Assert.AreEqual(0.999, instance.B);
+            Assert.AreEqual(100f, instance.C);
+            Assert.AreEqual(20, instance.D);
+            Assert.AreEqual(0, instance.E);
+        }
+
+        class CannotInject
+        {
+            [Inject] public int A { get; }
+        }
+
+        [Test]
+        public void should_throw_on_inject_to_readonly_property()
+        {
+            var container = new Container();
+            container.RegisterInstance<int>(10);
+            Assert.Catch<Exception>(() => container.InjectAll(new CannotInject()));
+        }
+
+        [Test]
+        public void should_throw_if_not_able_to_inject()
+        {
+            var container = new Container();
+            Assert.Catch<Exception>(() => container.InjectAll(new Injected()));
+        }
     }
 }

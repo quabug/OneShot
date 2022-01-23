@@ -8,7 +8,7 @@ namespace OneDose
 {
     public sealed class Container {}
 
-    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field)]
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute {}
 
     public static class TypeCreatorRegister
@@ -50,7 +50,8 @@ namespace OneDose
             [NotNull] Func<object> creator
         )
         {
-            GetOrCreateTypeResolvers(container).Add(type, new Creator(creator));
+            var resolvers = _containerResolvers.GetOrCreate(container, () => new Dictionary<Type, Creator>());
+            resolvers.Add(type, new Creator(creator));
         }
 
         public static void Register<T>(
@@ -114,29 +115,108 @@ namespace OneDose
         // TODO: check circular dependency
         private static Func<object> CreateInstance(Container container, ConstructorInfo ci)
         {
-            return () =>
-            {
-                var arguments = ci.GetParameters()
-                    .Select(parameter => ResolveParameterInfo(container, parameter))
-                    .ToArray()
-                ;
-                return ci.Invoke(arguments);
-            };
+            var parameters = ci.GetParameters();
+            return () => ci.Invoke(container.ResolveParameterInfos(parameters));
         }
 
-        private static object ResolveParameterInfo(Container container, ParameterInfo parameter)
+        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter)
         {
             var creator = FindCreatorInHierarchy(container, parameter.ParameterType);
             if (creator.HasValue) return creator.Value.CreatorFunc();
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException();
         }
 
-        private static Dictionary<Type, Creator> GetOrCreateTypeResolvers(Container container)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters)
         {
-            if (_containerResolvers.TryGetValue(container, out var resolvers)) return resolvers;
-            resolvers = new Dictionary<Type, Creator>();
-            _containerResolvers[container] = resolvers;
-            return resolvers;
+            return parameters.Select(parameter => ResolveParameterInfo(container, parameter)).ToArray();
+        }
+    }
+
+    public static class InjectExtension
+    {
+        private static readonly Dictionary<Type, TypeInjector> _injectors = new Dictionary<Type, TypeInjector>();
+
+        public static void InjectAll([NotNull] this Container container, object instance, Type instanceType)
+        {
+            _injectors.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
+        }
+
+        public static void InjectAll<T>([NotNull] this Container container, T instance)
+        {
+            InjectAll(container, instance, typeof(T));
+        }
+    }
+
+    class TypeInjector
+    {
+        private readonly Type _type;
+        private readonly List<FieldInfo> _fields = new List<FieldInfo>();
+        private readonly List<PropertyInfo> _properties = new List<PropertyInfo>();
+        private readonly List<MethodInfo> _methods = new List<MethodInfo>();
+
+        public TypeInjector(Type type)
+        {
+            _type = type;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var member in type.GetMembers(flags).Where(mi => mi.GetCustomAttribute<InjectAttribute>() != null))
+            {
+                switch (member)
+                {
+                    case FieldInfo field:
+                        _fields.Add(field);
+                        break;
+                    case PropertyInfo property:
+                        if (property.CanWrite) _properties.Add(property);
+                        else throw new NotSupportedException($"cannot inject on read-only property {property.DeclaringType.Name}.{property.Name}");
+                        break;
+                    case MethodInfo method: // TODO: check method validation
+                        _methods.Add(method);
+                        break;
+                }
+            }
+        }
+
+        public void InjectFields(Container container, object instance)
+        {
+            CheckInstanceType(instance);
+            foreach (var field in _fields) field.SetValue(instance, container.Resolve(field.FieldType));
+        }
+
+        public void InjectProperties(Container container, object instance)
+        {
+            CheckInstanceType(instance);
+            foreach (var property in _properties) property.SetValue(instance, container.Resolve(property.PropertyType));
+        }
+
+        public void InjectMethods(Container container, object instance)
+        {
+            CheckInstanceType(instance);
+            foreach (var method in _methods) method.Invoke(instance, container.ResolveParameterInfos(method.GetParameters()));
+        }
+
+        public void InjectAll(Container container, object instance)
+        {
+            InjectFields(container, instance);
+            InjectProperties(container, instance);
+            InjectMethods(container, instance);
+        }
+
+        private void CheckInstanceType(object instance)
+        {
+            if (instance.GetType() != _type) throw new ArgumentException();
+        }
+    }
+
+    internal static class DictionaryExtension
+    {
+        public static TValue GetOrCreate<TKey, TValue>([NotNull] this Dictionary<TKey, TValue> dictionary, TKey key, Func<TValue> createValue)
+        {
+            if (!dictionary.TryGetValue(key, out var value))
+            {
+                value = createValue();
+                dictionary[key] = value;
+            }
+            return value;
         }
     }
 }
