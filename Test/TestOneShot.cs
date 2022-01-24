@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NUnit.Framework;
 
 namespace OneShot.Test
@@ -362,6 +363,51 @@ namespace OneShot.Test
             Assert.Catch<Exception>(() => child121.Resolve<int>());
             Assert.Catch<Exception>(() => child122.Resolve<int>());
             Assert.AreEqual(10, child2.Resolve<int>());
+        }
+
+        class IntArrayClass
+        {
+            public readonly int IntValue;
+            public readonly int[] IntArray;
+
+            public IntArrayClass(int intValue, int[] intArray)
+            {
+                IntValue = intValue;
+                IntArray = intArray;
+            }
+        }
+
+        [Test]
+        public void should_resolve_group_of_type()
+        {
+            var container = new Container();
+            var child1 = container.CreateChildContainer();
+            var child11 = child1.CreateChildContainer();
+            var child12 = child1.CreateChildContainer();
+            var child2 = container.CreateChildContainer();
+
+            Assert.Catch<Exception>(() => container.ResolveGroup<int>());
+
+            container.RegisterInstance(10);
+            container.RegisterInstance(11);
+            child1.RegisterInstance(20);
+            child1.RegisterInstance(22);
+            child2.RegisterInstance(30);
+            child11.RegisterInstance(40);
+            child12.RegisterInstance(50);
+            Assert.That(new[] { 50, 22, 20, 11, 10 }, Is.EqualTo(child12.ResolveGroup<int>().ToArray()));
+            Assert.That(new[] { 40, 22, 20, 11, 10 }, Is.EqualTo(child11.ResolveGroup<int>().ToArray()));
+            Assert.That(new[] { 30, 11, 10 }, Is.EqualTo(child2.ResolveGroup<int>().ToArray()));
+            Assert.That(new[] { 22, 20, 11, 10 }, Is.EqualTo(child1.ResolveGroup<int>().ToArray()));
+            Assert.That(new[] { 11, 10 }, Is.EqualTo(container.ResolveGroup<int>().ToArray()));
+
+            var instance = child12.Instantiate<IntArrayClass>();
+            Assert.AreEqual(50, instance.IntValue);
+            Assert.That(new[] { 50, 22, 20, 11, 10 }, Is.EqualTo(instance.IntArray));
+
+            instance = container.Instantiate<IntArrayClass>();
+            Assert.AreEqual(11, instance.IntValue);
+            Assert.That(new[] { 11, 10 }, Is.EqualTo(instance.IntArray));
         }
     }
 }
