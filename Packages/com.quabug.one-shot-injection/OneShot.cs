@@ -28,25 +28,22 @@ using JetBrains.Annotations;
 
 namespace OneShot
 {
-    public sealed class Container {}
+    public sealed class Container : IDisposable
+    {
+        public void Dispose() => this.DisposeContainer();
+    }
 
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute {}
 
     public static class TypeCreatorRegister
     {
-        private readonly struct Creator
-        {
-            [NotNull] public readonly Func<object> CreatorFunc;
-            public Creator([NotNull] Func<object> creatorFunc) => CreatorFunc = creatorFunc;
-        }
-
         private static readonly Dictionary<Container, Container> _containerParentMap =
             new Dictionary<Container, Container>()
         ;
 
-        private static readonly Dictionary<Container, Dictionary<Type, Creator>> _containerResolvers =
-            new Dictionary<Container, Dictionary<Type, Creator>>()
+        private static readonly Dictionary<Container, Dictionary<Type, List<Func<object>>>> _containerResolvers =
+            new Dictionary<Container, Dictionary<Type, List<Func<object>>>>()
         ;
 
         [NotNull] public static Container CreateChildContainer([NotNull] this Container container)
@@ -58,7 +55,7 @@ namespace OneShot
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
         {
-            return _containerResolvers[container][type].CreatorFunc();
+            return ResolveGroup(container, type).First();
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container)
@@ -66,10 +63,28 @@ namespace OneShot
             return (T) container.Resolve(typeof(T));
         }
 
+        [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
+        {
+            var creators = FindCreatorsInHierarchy(container, type).SelectMany(creators => creators);
+            return creators.Select(creator => creator());
+        }
+
+        [NotNull] public static IEnumerable<object> ResolveGroup([NotNull] this Container container, Type type)
+        {
+            var objects = container.ResolveGroupWithoutException(type);
+            if (objects.Any()) return objects;
+            throw new ArgumentException($"{type.Name} have not been registered into containers.");
+        }
+
+        [NotNull] public static IEnumerable<T> ResolveGroup<T>([NotNull] this Container container)
+        {
+            return container.ResolveGroup(typeof(T)).OfType<T>();
+        }
+
         public static void Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
         {
-            var resolvers = _containerResolvers.GetOrCreate(container, () => new Dictionary<Type, Creator>());
-            resolvers[type] = new Creator(creator);
+            var resolvers = _containerResolvers.GetOrCreate(container);
+            resolvers.GetOrCreate(type).Insert(0, creator);
         }
 
         public static void Register<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
@@ -152,6 +167,34 @@ namespace OneShot
             return (T) container.Instantiate(typeof(T));
         }
 
+        public static void DisposeContainer([NotNull] this Container container)
+        {
+            var descendantsAndSelf = new HashSet<Container> { container };
+            var irrelevantContainers = new HashSet<Container>();
+            var containerHierarchy = new List<Container>();
+            foreach (var check in _containerParentMap.Keys)
+            {
+                containerHierarchy.Clear();
+                var containers = IsDescendant(check) ? descendantsAndSelf : irrelevantContainers;
+                foreach (var c in containerHierarchy) containers.Add(c);
+            }
+
+            foreach (var disposed in descendantsAndSelf)
+            {
+                _containerResolvers.Remove(disposed);
+                _containerParentMap.Remove(disposed);
+            }
+
+            bool IsDescendant(Container check)
+            {
+                containerHierarchy.Add(check);
+                if (!_containerParentMap.TryGetValue(check, out var parent)) return false;
+                if (descendantsAndSelf.Contains(parent)) return true;
+                if (irrelevantContainers.Contains(parent)) return false;
+                return IsDescendant(parent);
+            }
+        }
+
         private static ConstructorInfo FindConstructorInfo(Type type)
         {
             var constructors = type.GetConstructors();
@@ -162,11 +205,14 @@ namespace OneShot
             return ci;
         }
 
-        private static Creator? FindCreatorInHierarchy(Container container, Type type)
+        private static IEnumerable<List<Func<object>>> FindCreatorsInHierarchy(Container container, Type type)
         {
-            if (_containerResolvers[container].TryGetValue(type, out var creator)) return creator;
-            if (!_containerParentMap.TryGetValue(container, out var parent)) return null;
-            return FindCreatorInHierarchy(parent, type);
+            for (;;)
+            {
+                if (_containerResolvers.TryGetValue(container, out var resolvers) && resolvers.TryGetValue(type, out var creators))
+                    yield return creators;
+                if (!_containerParentMap.TryGetValue(container, out container)) break;
+            }
         }
 
         // TODO: check circular dependency
@@ -178,8 +224,20 @@ namespace OneShot
 
         internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter)
         {
-            var creator = FindCreatorInHierarchy(container, parameter.ParameterType);
-            if (creator.HasValue) return creator.Value.CreatorFunc();
+            var argument = container.ResolveGroupWithoutException(parameter.ParameterType).FirstOrDefault();
+            if (argument != null) return argument;
+            if (parameter.ParameterType.IsArray)
+            {
+                var elementType = parameter.ParameterType.GetElementType();
+                var arrayArgument = container.ResolveGroupWithoutException(elementType);
+                if (arrayArgument.Any())
+                {
+                    var source = arrayArgument.ToArray();
+                    var dest = Array.CreateInstance(elementType, source.Length);
+                    Array.Copy(source, dest, source.Length);
+                    return dest;
+                }
+            }
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
@@ -268,11 +326,23 @@ namespace OneShot
 
     internal static class DictionaryExtension
     {
-        public static TValue GetOrCreate<TKey, TValue>([NotNull] this Dictionary<TKey, TValue> dictionary, TKey key, Func<TValue> createValue)
+        [NotNull] public static TValue GetOrCreate<TKey, TValue>(
+            [NotNull] this Dictionary<TKey, TValue> dictionary,
+            [NotNull] TKey key
+        ) where TValue : new()
+        {
+            return dictionary.GetOrCreate(key, () => new TValue());
+        }
+
+        [NotNull] public static TValue GetOrCreate<TKey, TValue>(
+            [NotNull] this Dictionary<TKey, TValue> dictionary,
+            [NotNull] TKey key,
+            [NotNull] Func<TValue> newValue
+        )
         {
             if (!dictionary.TryGetValue(key, out var value))
             {
-                value = createValue();
+                value = newValue();
                 dictionary[key] = value;
             }
             return value;
