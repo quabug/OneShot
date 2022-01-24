@@ -28,7 +28,10 @@ using JetBrains.Annotations;
 
 namespace OneShot
 {
-    public sealed class Container {}
+    public sealed class Container : IDisposable
+    {
+        public void Dispose() => this.DisposeContainer();
+    }
 
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute {}
@@ -58,7 +61,9 @@ namespace OneShot
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
         {
-            return _containerResolvers[container][type].CreatorFunc();
+            var creator = FindCreatorInHierarchy(container, type);
+            if (creator.HasValue) return creator.Value.CreatorFunc();
+            throw new ArgumentException($"{type.Name} have not registered into containers.");
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container)
@@ -152,6 +157,34 @@ namespace OneShot
             return (T) container.Instantiate(typeof(T));
         }
 
+        public static void DisposeContainer([NotNull] this Container container)
+        {
+            var descendantsAndSelf = new HashSet<Container> { container };
+            var irrelevantContainers = new HashSet<Container>();
+            var containerHierarchy = new List<Container>();
+            foreach (var check in _containerParentMap.Keys)
+            {
+                containerHierarchy.Clear();
+                var containers = IsDescendant(check) ? descendantsAndSelf : irrelevantContainers;
+                foreach (var c in containerHierarchy) containers.Add(c);
+            }
+
+            foreach (var disposed in descendantsAndSelf)
+            {
+                _containerResolvers.Remove(disposed);
+                _containerParentMap.Remove(disposed);
+            }
+
+            bool IsDescendant(Container check)
+            {
+                containerHierarchy.Add(check);
+                if (!_containerParentMap.TryGetValue(check, out var parent)) return false;
+                if (descendantsAndSelf.Contains(parent)) return true;
+                if (irrelevantContainers.Contains(parent)) return false;
+                return IsDescendant(parent);
+            }
+        }
+
         private static ConstructorInfo FindConstructorInfo(Type type)
         {
             var constructors = type.GetConstructors();
@@ -164,7 +197,8 @@ namespace OneShot
 
         private static Creator? FindCreatorInHierarchy(Container container, Type type)
         {
-            if (_containerResolvers[container].TryGetValue(type, out var creator)) return creator;
+            if (_containerResolvers.TryGetValue(container, out var resolvers) && resolvers.TryGetValue(type, out var creator))
+                return creator;
             if (!_containerParentMap.TryGetValue(container, out var parent)) return null;
             return FindCreatorInHierarchy(parent, type);
         }

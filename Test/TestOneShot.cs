@@ -183,11 +183,13 @@ namespace OneShot.Test
             container.RegisterInstance(instance);
 
             var child1 = container.CreateChildContainer();
+            child1.Resolve<TypeA>();
             child1.RegisterSingleton<DefaultConstructor>();
             Assert.AreSame(child1.Resolve<DefaultConstructor>(), child1.Resolve<DefaultConstructor>());
             Assert.AreSame(instance, child1.Resolve<DefaultConstructor>().TypeA);
 
             var child2 = container.CreateChildContainer();
+            child2.Resolve<TypeA>();
             child2.RegisterTransient<DefaultConstructor>();
             Assert.AreNotSame(child2.Resolve<DefaultConstructor>(), child2.Resolve<DefaultConstructor>());
             Assert.AreSame(instance, child2.Resolve<DefaultConstructor>().TypeA);
@@ -329,6 +331,37 @@ namespace OneShot.Test
             var container = new Container();
             container.RegisterSingleton<TypeA>();
             Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
+        }
+
+        [Test]
+        public void should_dispose_container()
+        {
+            var container = new Container();
+            container.RegisterInstance(10);
+            container.Resolve<int>();
+            container.Dispose();
+            Assert.Catch<Exception>(() => container.Resolve<int>());
+        }
+
+        [Test]
+        public void should_dispose_container_hierarchy()
+        {
+            var container = new Container();
+            container.RegisterInstance(10);
+            var child1 = container.CreateChildContainer();
+            var child11 = child1.CreateChildContainer();
+            var child12 = child1.CreateChildContainer();
+            var child121 = child12.CreateChildContainer();
+            var child122 = child12.CreateChildContainer();
+            Assert.AreEqual(10, child122.Resolve<int>());
+            var child2 = container.CreateChildContainer();
+            child1.Dispose();
+            Assert.Catch<Exception>(() => child1.Resolve<int>());
+            Assert.Catch<Exception>(() => child11.Resolve<int>());
+            Assert.Catch<Exception>(() => child12.Resolve<int>());
+            Assert.Catch<Exception>(() => child121.Resolve<int>());
+            Assert.Catch<Exception>(() => child122.Resolve<int>());
+            Assert.AreEqual(10, child2.Resolve<int>());
         }
     }
 }
