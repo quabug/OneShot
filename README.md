@@ -8,6 +8,10 @@ A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 ## Usage
 [Test Cases](Test/TestOneShot.cs)
 
+### Installation
+- Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
+- [Unity-Only] or follow instructions on [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection) to install it as a package of Unity.
+
 ### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L9)
 A scope mark for registered types.
 
