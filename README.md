@@ -5,12 +5,12 @@ A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 - [How YOU can Learn Dependency Injection in .NET Core and C#](https://softchris.github.io/pages/dotnet-di.html)
 - [vContainer](https://vcontainer.hadashikick.jp/about/what-is-di)
 
-## Usage
-[Test Cases](Test/TestOneShot.cs)
-
-### Installation
+## Installation
 - Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
 - [Unity-Only] or follow instructions on [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection) to install it as a package of Unity.
+
+## Usage
+[Test Cases](Test/TestOneShot.cs)
 
 ### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L9)
 A scope mark for registered types.
