@@ -55,3 +55,6 @@ container.RegisterSingleton<Foo>();
 var foo = container.Resolve<Foo>(); // instantial `Foo` by `Foo(int value)`
 container.InjectAll(foo); // inject its fields, properteis and methods
 ```
+
+### A Complex Use Case
+[GraphExt](https://github.com/quabug/GraphExt/tree/main/Packages/com.quabug.graph-ext/DI)
