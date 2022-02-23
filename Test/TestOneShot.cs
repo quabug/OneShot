@@ -59,7 +59,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
+            container.RegisterInstance(instance).AsSelf();
             Assert.AreSame(instance, container.Resolve<TypeA>());
         }
 
@@ -67,7 +67,7 @@ namespace OneShot.Test
         public void should_resolve_singleton()
         {
             var container = new Container();
-            container.RegisterSingleton<TypeA>();
+            container.Register<TypeA>().Singleton().AsSelf();
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
 
@@ -76,7 +76,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             Func<TypeA> createTypeA = () => new TypeA();
-            container.RegisterSingleton(createTypeA);
+            container.Register(createTypeA).Singleton().AsSelf();
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
 
@@ -84,7 +84,7 @@ namespace OneShot.Test
         public void should_resolve_transient()
         {
             var container = new Container();
-            container.RegisterTransient<TypeA>();
+            container.Register<TypeA>().AsSelf();
             Assert.AreNotSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
 
@@ -93,8 +93,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
-            container.Register<InterfaceA>(() => container.Resolve<TypeA>());
+            container.RegisterInstance(instance).AsSelf().As<InterfaceA>();
             Assert.AreSame(instance, container.Resolve<InterfaceA>());
         }
 
@@ -103,8 +102,8 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
-            container.RegisterSingleton<DefaultConstructor>();
+            container.RegisterInstance(instance).AsSelf();
+            container.Register<DefaultConstructor>().Singleton().AsSelf();
             Assert.AreSame(instance, container.Resolve<DefaultConstructor>().TypeA);
         }
 
@@ -113,8 +112,8 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
-            container.RegisterSingleton<InjectConstructor>();
+            container.RegisterInstance(instance).AsSelf();
+            container.Register<InjectConstructor>().Singleton().AsSelf();
             Assert.AreSame(instance, container.Resolve<InjectConstructor>().TypeA);
         }
 
@@ -123,8 +122,8 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
-            container.RegisterSingleton<ConstructorWithDefaultParameter>();
+            container.RegisterInstance(instance).AsSelf();
+            container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
             Assert.AreSame(instance, container.Resolve<ConstructorWithDefaultParameter>().TypeA);
             Assert.AreEqual(10, container.Resolve<ConstructorWithDefaultParameter>().IntValue);
         }
@@ -134,13 +133,12 @@ namespace OneShot.Test
         {
             var container = new Container();
             var typeA = new TypeA();
-            container.RegisterInstance(typeA);
-            container.Register<InterfaceA>(() => container.Resolve<TypeA>());
-            container.RegisterTransient<InjectConstructor>();
-            container.RegisterSingleton<ConstructorWithDefaultParameter>();
-            container.RegisterSingleton<DefaultConstructor>();
-            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue);
-            container.RegisterTransient<ComplexClass>();
+            container.RegisterInstance(typeA).AsSelf().As<InterfaceA>();
+            container.Register<InjectConstructor>().AsSelf();
+            container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
+            container.Register<DefaultConstructor>().Singleton().AsSelf();
+            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<ComplexClass>().AsSelf();
             var complex1 = container.Resolve<ComplexClass>();
             Assert.AreSame(typeA, complex1.A);
             Assert.AreSame(typeA, complex1.B);
@@ -170,9 +168,9 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
-            container.RegisterSingleton<DefaultConstructor>();
-            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue);
+            container.RegisterInstance(instance).AsSelf();
+            container.Register<DefaultConstructor>().Singleton().AsSelf();
+            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
             Assert.AreEqual(100, container.Resolve<Func<int>>()());
         }
 
@@ -181,17 +179,17 @@ namespace OneShot.Test
         {
             var container = new Container();
             var instance = new TypeA();
-            container.RegisterInstance(instance);
+            container.RegisterInstance(instance).AsSelf();
 
             var child1 = container.CreateChildContainer();
             child1.Resolve<TypeA>();
-            child1.RegisterSingleton<DefaultConstructor>();
+            child1.Register<DefaultConstructor>().Singleton().AsSelf();
             Assert.AreSame(child1.Resolve<DefaultConstructor>(), child1.Resolve<DefaultConstructor>());
             Assert.AreSame(instance, child1.Resolve<DefaultConstructor>().TypeA);
 
             var child2 = container.CreateChildContainer();
             child2.Resolve<TypeA>();
-            child2.RegisterTransient<DefaultConstructor>();
+            child2.Register<DefaultConstructor>().AsSelf();
             Assert.AreNotSame(child2.Resolve<DefaultConstructor>(), child2.Resolve<DefaultConstructor>());
             Assert.AreSame(instance, child2.Resolve<DefaultConstructor>().TypeA);
         }
@@ -200,8 +198,8 @@ namespace OneShot.Test
         public void should_override_register()
         {
             var container = new Container();
-            container.RegisterInstance(10);
-            container.RegisterInstance(20);
+            container.RegisterInstance(10).AsSelf();
+            container.RegisterInstance(20).AsSelf();
             Assert.AreEqual(20, container.Resolve<int>());
         }
 
@@ -209,7 +207,7 @@ namespace OneShot.Test
         public void should_throw_if_cannot_resolve()
         {
             var container = new Container();
-            container.RegisterSingleton<DefaultConstructor>();
+            container.Register<DefaultConstructor>().Singleton().AsSelf();
             Assert.Catch<Exception>(() => container.Resolve<TypeA>());
             Assert.Catch<Exception>(() => container.Resolve<DefaultConstructor>());
         }
@@ -228,8 +226,8 @@ namespace OneShot.Test
         public void should_throw_on_circular_dependency()
         {
             var container = new Container();
-            container.RegisterTransient<A>();
-            container.RegisterTransient<B>();
+            container.Register<A>().AsSelf();
+            container.Register<B>().AsSelf();
             Assert.Catch<Exception>(() => container.Resolve<A>());
         }
 
@@ -271,9 +269,9 @@ namespace OneShot.Test
         public void should_inject_marked_members()
         {
             var container = new Container();
-            container.RegisterInstance<int>(10);
-            container.RegisterInstance<float>(100f);
-            container.RegisterInstance<double>(0.999);
+            container.RegisterInstance<int>(10).AsSelf();
+            container.RegisterInstance<float>(100f).AsSelf();
+            container.RegisterInstance<double>(0.999).AsSelf();
             var instance = new Injected();
             container.InjectAll(instance);
             Assert.AreEqual(10, instance.Int);
@@ -295,7 +293,7 @@ namespace OneShot.Test
         public void should_throw_on_inject_to_readonly_property()
         {
             var container = new Container();
-            container.RegisterInstance<int>(10);
+            container.RegisterInstance<int>(10).AsSelf();
             Assert.Catch<Exception>(() => container.InjectAll(new CannotInject()));
         }
 
@@ -311,7 +309,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             Func<int, int> returnInt = value => value * 2;
-            container.RegisterInstance(10);
+            container.RegisterInstance(10).AsSelf();
             Assert.AreEqual(20, container.Call<int>(returnInt));
         }
 
@@ -321,7 +319,7 @@ namespace OneShot.Test
             var container = new Container();
             var intValue = 0;
             Action<int> action = value => intValue = value * 2;
-            container.RegisterInstance(10);
+            container.RegisterInstance(10).AsSelf();
             container.CallAction(action);
             Assert.AreEqual(20, intValue);
         }
@@ -330,7 +328,7 @@ namespace OneShot.Test
         public void should_instantiate_by_type()
         {
             var container = new Container();
-            container.RegisterSingleton<TypeA>();
+            container.Register<TypeA>().Singleton().AsSelf();
             Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
         }
 
@@ -338,7 +336,7 @@ namespace OneShot.Test
         public void should_dispose_container()
         {
             var container = new Container();
-            container.RegisterInstance(10);
+            container.RegisterInstance(10).AsSelf();
             container.Resolve<int>();
             container.Dispose();
             Assert.Catch<Exception>(() => container.Resolve<int>());
@@ -348,7 +346,7 @@ namespace OneShot.Test
         public void should_dispose_container_hierarchy()
         {
             var container = new Container();
-            container.RegisterInstance(10);
+            container.RegisterInstance(10).AsSelf();
             var child1 = container.CreateChildContainer();
             var child11 = child1.CreateChildContainer();
             var child12 = child1.CreateChildContainer();
@@ -388,13 +386,13 @@ namespace OneShot.Test
 
             Assert.Catch<Exception>(() => container.ResolveGroup<int>());
 
-            container.RegisterInstance(10);
-            container.RegisterInstance(11);
-            child1.RegisterInstance(20);
-            child1.RegisterInstance(22);
-            child2.RegisterInstance(30);
-            child11.RegisterInstance(40);
-            child12.RegisterInstance(50);
+            container.RegisterInstance(10).AsSelf();
+            container.RegisterInstance(11).AsSelf();
+            child1.RegisterInstance(20).AsSelf();
+            child1.RegisterInstance(22).AsSelf();
+            child2.RegisterInstance(30).AsSelf();
+            child11.RegisterInstance(40).AsSelf();
+            child12.RegisterInstance(50).AsSelf();
             Assert.That(new[] { 50, 22, 20, 11, 10 }, Is.EqualTo(child12.ResolveGroup<int>().ToArray()));
             Assert.That(new[] { 40, 22, 20, 11, 10 }, Is.EqualTo(child11.ResolveGroup<int>().ToArray()));
             Assert.That(new[] { 30, 11, 10 }, Is.EqualTo(child2.ResolveGroup<int>().ToArray()));

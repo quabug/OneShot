@@ -36,6 +36,70 @@ namespace OneShot
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute {}
 
+    public class ResolverBuilder
+    {
+        [NotNull] protected readonly Container _Container;
+        [NotNull] protected readonly Func<object> _Creator;
+        [NotNull] protected readonly Type _Type;
+
+        public ResolverBuilder([NotNull] Container container, [NotNull] Func<object> creator, [NotNull] Type type)
+        {
+            _Container = container;
+            _Creator = creator;
+            _Type = type;
+        }
+
+        [NotNull] public ResolverBuilder As([NotNull] Type type)
+        {
+            if (!type.IsAssignableFrom(_Type)) throw new ArgumentException();
+            var resolver = GetOrCreateResolver(type);
+            if (!resolver.Contains(_Creator)) resolver.Insert(0, _Creator);
+            return this;
+        }
+
+        [NotNull] public ResolverBuilder As<T>()
+        {
+            return As(typeof(T));
+        }
+
+        [NotNull] public ResolverBuilder AsSelf()
+        {
+            return As(_Type);
+        }
+
+        [NotNull] public ResolverBuilder AsInterfaces()
+        {
+            foreach (var @interface in _Type.GetInterfaces()) As(@interface);
+            return this;
+        }
+
+        private List<Func<object>> GetOrCreateResolver(Type type)
+        {
+            return _Container.GetOrCreateResolver(type);
+        }
+    }
+
+    public class LifetimeBuilder : ResolverBuilder
+    {
+        public LifetimeBuilder([NotNull] Container container, [NotNull] Func<object> creator, [NotNull] Type type) : base(container, creator, type) {}
+
+        public ResolverBuilder Transient()
+        {
+            return this;
+        }
+
+        public ResolverBuilder Singleton()
+        {
+            var lazyValue = new Lazy<object>(_Creator);
+            return new ResolverBuilder(_Container, () => lazyValue.Value, _Type);
+        }
+
+        public ResolverBuilder Scope()
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public static class TypeCreatorRegister
     {
         private static readonly Dictionary<Container, Container> _containerParentMap =
@@ -51,6 +115,11 @@ namespace OneShot
             var child = new Container();
             _containerParentMap[child] = container;
             return child;
+        }
+
+        [NotNull] internal static List<Func<object>> GetOrCreateResolver(this Container container, Type type)
+        {
+            return _containerResolvers.GetOrCreate(container).GetOrCreate(type);
         }
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
@@ -81,58 +150,35 @@ namespace OneShot
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
-        public static void Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
+        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
         {
-            var resolvers = _containerResolvers.GetOrCreate(container);
-            resolvers.GetOrCreate(type).Insert(0, creator);
+            return new LifetimeBuilder(container, creator, type);
         }
 
-        public static void Register<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
+        public static LifetimeBuilder Register<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
         {
-            container.Register(typeof(T), creator);
+            return container.Register(typeof(T), creator);
         }
 
-        public static void RegisterInstance([NotNull] this Container container, [NotNull] Type type, [NotNull] object instance)
+        public static LifetimeBuilder Register<T>([NotNull] this Container container)
         {
-            container.Register(type, () => instance);
+            return container.Register(typeof(T));
         }
 
-        public static void RegisterSingleton([NotNull] this Container container, [NotNull] Type type)
+        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
-            container.RegisterSingleton(type, CreateInstance(container, ci));
+            return container.Register(type, CreateInstance(container, ci));
         }
 
-        public static void RegisterSingleton([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<object> creator)
+        public static ResolverBuilder RegisterInstance([NotNull] this Container container, [NotNull] Type type, [NotNull] object instance)
         {
-            var lazyValue = new Lazy<object>(creator);
-            container.Register(type, () => lazyValue.Value);
+            return container.Register(instance.GetType(), () => instance).As(type);
         }
 
-        public static void RegisterTransient([NotNull] this Container container, [NotNull] Type type)
+        public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
         {
-            var ci = FindConstructorInfo(type);
-            container.Register(type, CreateInstance(container, ci));
-        }
-
-        public static void RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
-        {
-            container.RegisterInstance(typeof(T), instance);
-        }
-
-        public static void RegisterSingleton<T>([NotNull] this Container container)
-        {
-            container.RegisterSingleton(typeof(T));
-        }
-
-        public static void RegisterSingleton<T>([NotNull] this Container container, [NotNull] Func<T> creator) where T : class
-        {
-            container.RegisterSingleton(typeof(T), creator);
-        }
-
-        public static void RegisterTransient<T>([NotNull] this Container container)
-        {
-            container.RegisterTransient(typeof(T));
+            return container.RegisterInstance(typeof(T), instance);
         }
 
         public static object Call([NotNull] this Container container, Delegate func)
@@ -216,7 +262,7 @@ namespace OneShot
         }
 
         // TODO: check circular dependency
-        private static Func<object> CreateInstance(Container container, ConstructorInfo ci)
+        internal static Func<object> CreateInstance(this Container container, ConstructorInfo ci)
         {
             var parameters = ci.GetParameters();
             return () => ci.Invoke(container.ResolveParameterInfos(parameters));
