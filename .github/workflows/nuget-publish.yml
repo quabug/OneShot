@@ -2,8 +2,11 @@ name: .NET
 
 on:
   push:
+    branches:
+      main
     tags:
       - v*
+  workflow_dispatch:
 
 jobs:
   build:
