@@ -30,7 +30,13 @@ namespace OneShot
 {
     public sealed class Container : IDisposable
     {
-        public void Dispose() => this.DisposeContainer();
+        internal readonly List<IDisposable> DisposableInstances = new List<IDisposable>();
+        public void Dispose()
+        {
+            this.DisposeContainer();
+            foreach (var instance in DisposableInstances) instance.Dispose();
+            DisposableInstances.Clear();
+        }
     }
 
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
@@ -182,17 +188,25 @@ namespace OneShot
         public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
-            return container.Register(type, CreateInstance(container, ci));
-        }
+            return container.Register(type, CreateInstance());
 
-        public static ResolverBuilder RegisterInstance([NotNull] this Container container, [NotNull] Type type, [NotNull] object instance)
-        {
-            return container.Register(instance.GetType(), (c, t) => instance).As(type);
+            // TODO: check circular dependency
+            Func<Container, Type, object> CreateInstance()
+            {
+                var parameters = ci.GetParameters();
+                var arguments = new object[parameters.Length];
+                return (resolveContainer, _) =>
+                {
+                    var instance = ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
+                    if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
+                    return instance;
+                };
+            }
         }
 
         public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
         {
-            return container.RegisterInstance(typeof(T), instance);
+            return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
         }
 
         public static object Call([NotNull] this Container container, Delegate func)
@@ -283,14 +297,6 @@ namespace OneShot
                 if (creators.Count > 0) return creators[0];
             } while (_containerParentMap.TryGetValue(container, out container));
             return null;
-        }
-
-        // TODO: check circular dependency
-        internal static Func<Container, Type, object> CreateInstance(this Container container, ConstructorInfo ci)
-        {
-            var parameters = ci.GetParameters();
-            var arguments = new object[parameters.Length];
-            return (c, t) => ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
         }
 
         internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter)

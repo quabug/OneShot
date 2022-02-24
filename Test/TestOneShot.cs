@@ -421,5 +421,86 @@ namespace OneShot.Test
             Assert.AreEqual(11, instance.IntValue);
             Assert.That(new[] { 11, 10 }, Is.EqualTo(instance.IntArray));
         }
+
+        public class Disposable : IDisposable
+        {
+            public int DisposedCount = 0;
+            public void Dispose() => DisposedCount++;
+        }
+
+        [Test]
+        public void should_dispose_transient_instances_of_container()
+        {
+            var container = new Container();
+            var childContainer = container.CreateChildContainer();
+            container.Register<Disposable>().AsSelf();
+            var disposable1 = container.Resolve<Disposable>();
+            var disposable2 = container.Resolve<Disposable>();
+            var childDisposable = childContainer.Resolve<Disposable>();
+
+            Assert.AreNotSame(disposable1, disposable2);
+            Assert.AreNotSame(disposable1, childDisposable);
+            Assert.AreEqual(0, disposable1.DisposedCount);
+            Assert.AreEqual(0, disposable2.DisposedCount);
+            Assert.AreEqual(0, childDisposable.DisposedCount);
+
+            childContainer.Dispose();
+            Assert.AreEqual(0, disposable1.DisposedCount);
+            Assert.AreEqual(0, disposable2.DisposedCount);
+            Assert.AreEqual(1, childDisposable.DisposedCount);
+
+            container.Dispose();
+            Assert.AreEqual(1, disposable1.DisposedCount);
+            Assert.AreEqual(1, disposable2.DisposedCount);
+            Assert.AreEqual(1, childDisposable.DisposedCount);
+        }
+
+        [Test]
+        public void should_dispose_singleton_instances_of_container()
+        {
+            var container = new Container();
+            var childContainer = container.CreateChildContainer();
+            container.Register<Disposable>().Singleton().AsSelf();
+            var disposable1 = container.Resolve<Disposable>();
+            var disposable2 = container.Resolve<Disposable>();
+            var childDisposable = childContainer.Resolve<Disposable>();
+
+            Assert.AreSame(disposable1, disposable2);
+            Assert.AreSame(disposable1, childDisposable);
+            Assert.AreEqual(0, disposable1.DisposedCount);
+
+            childContainer.Dispose();
+            Assert.AreEqual(0, disposable1.DisposedCount);
+
+            container.Dispose();
+            Assert.AreEqual(1, disposable1.DisposedCount);
+        }
+
+        [Test]
+        public void should_dispose_scope_instances_of_container()
+        {
+            var container = new Container();
+            var childContainer = container.CreateChildContainer();
+            container.Register<Disposable>().Scope().AsSelf();
+            var disposable1 = container.Resolve<Disposable>();
+            var disposable2 = container.Resolve<Disposable>();
+            var childDisposable1 = childContainer.Resolve<Disposable>();
+            var childDisposable2 = childContainer.Resolve<Disposable>();
+
+            Assert.AreSame(disposable1, disposable2);
+            Assert.AreSame(childDisposable1, childDisposable2);
+            Assert.AreNotSame(disposable1, childDisposable1);
+
+            Assert.AreEqual(0, disposable1.DisposedCount);
+            Assert.AreEqual(0, childDisposable1.DisposedCount);
+
+            childContainer.Dispose();
+            Assert.AreEqual(0, disposable1.DisposedCount);
+            Assert.AreEqual(1, childDisposable1.DisposedCount);
+
+            container.Dispose();
+            Assert.AreEqual(1, disposable1.DisposedCount);
+            Assert.AreEqual(1, childDisposable1.DisposedCount);
+        }
     }
 }
