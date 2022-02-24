@@ -75,7 +75,7 @@ namespace OneShot.Test
         public void should_resolve_singleton_func()
         {
             var container = new Container();
-            Func<TypeA> createTypeA = () => new TypeA();
+            Func<Container, Type, TypeA> createTypeA = (c, t) => new TypeA();
             container.Register(createTypeA).Singleton().AsSelf();
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
@@ -86,6 +86,20 @@ namespace OneShot.Test
             var container = new Container();
             container.Register<TypeA>().AsSelf();
             Assert.AreNotSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
+        }
+
+        [Test]
+        public void should_resolve_scoped()
+        {
+            var container = new Container();
+            container.Register<TypeA>().Scope().AsSelf();
+            Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
+            var childContainer = container.CreateChildContainer();
+            Assert.AreNotSame(container.Resolve<TypeA>(), childContainer.Resolve<TypeA>());
+            Assert.AreSame(childContainer.Resolve<TypeA>(), childContainer.Resolve<TypeA>());
+            var grandChildContainer = childContainer.CreateChildContainer();
+            Assert.AreNotSame(childContainer.Resolve<TypeA>(), grandChildContainer.Resolve<TypeA>());
+            Assert.AreSame(grandChildContainer.Resolve<TypeA>(), grandChildContainer.Resolve<TypeA>());
         }
 
         [Test]
@@ -137,7 +151,7 @@ namespace OneShot.Test
             container.Register<InjectConstructor>().AsSelf();
             container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
             container.Register<ComplexClass>().AsSelf();
             var complex1 = container.Resolve<ComplexClass>();
             Assert.AreSame(typeA, complex1.A);
@@ -170,7 +184,7 @@ namespace OneShot.Test
             var instance = new TypeA();
             container.RegisterInstance(instance).AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>(() => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
             Assert.AreEqual(100, container.Resolve<Func<int>>()());
         }
 
