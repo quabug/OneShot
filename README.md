@@ -21,15 +21,18 @@ var container = new Container();
 
 // create child container/scope
 var child = container.CreateChildContainer();
+
+// create a scope container (exactly same as child container)
+using (var scope = container.BeginScope())
 ```
 
 ### [Register Types](Packages/com.quabug.one-shot-injection/OneShot.cs#L47)
 ``` c#
-container.RegisterInstance<int>(10); // register instance of int
-container.RegisterSingleton<Foo>(); // register a singleton of `Foo`
-container.RegisterTransient<Bar>(); // register transient of `Bar`
-container.Register<Func<int>>(() => container.Resolve<Foo>().GetIntValue); // register `Func<int>`
-conatiner.Register<IFoo>(() => container.Resolve<Foo>()); // register interface of `IFoo`
+container.RegisterInstance<int>(10).AsSelf(); // register instance of int
+container.Register<Foo>().Singleton().AsSelf(); // register a singleton of `Foo`
+container.Register<Bar>().AsSelf(); // register transient of `Bar`
+container.Register<Func<int>>((resolveContainer, contractType) => container.Resolve<Foo>().GetIntValue).AsSelf(); // register `Func<int>`
+conatiner.Register<IFoo>((resolveContainer, contractType) => container.Resolve<Foo>()).AsSelf(); // register interface of `IFoo`
 ```
 
 ### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L37)
@@ -51,7 +54,7 @@ class Foo
     [Inject] void Init(int value) {} // method albe to inject
 }
 
-container.RegisterSingleton<Foo>();
+container.Register<Foo>().Singleton().AsSelf();
 var foo = container.Resolve<Foo>(); // instantial `Foo` by `Foo(int value)`
 container.InjectAll(foo); // inject its fields, properteis and methods
 ```
