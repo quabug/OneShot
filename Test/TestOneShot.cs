@@ -103,6 +103,14 @@ namespace OneShot.Test
         }
 
         [Test]
+        public void should_not_able_to_register_invalid_type()
+        {
+            var container = new Container();
+            Assert.Catch<Exception>(() => container.Register<InterfaceA>());
+            Assert.Catch<Exception>(() => container.Register<ComplexClass>().As<TypeA>());
+        }
+
+        [Test]
         public void should_able_to_register_and_resolve_interface()
         {
             var container = new Container();

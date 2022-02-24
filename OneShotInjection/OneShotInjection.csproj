@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>1.4.0</Version>
+        <Version>2.0.0</Version>
         <Authors>quabug</Authors>
+        <TargetFrameworks>net48;net5.0;net6.0;netcoreapp3.1;netstandard2.0;netstandard2.1</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

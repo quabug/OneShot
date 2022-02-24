@@ -154,7 +154,7 @@ namespace OneShot
 
         [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
         {
-            var creators = FindCreatorsInHierarchy(container, type).SelectMany(creators => creators);
+            var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
             return creators.Select(creator => creator(container, type));
         }
 
@@ -322,7 +322,7 @@ namespace OneShot
 
         internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, object[] arguments = null)
         {
-            arguments ??= new object[parameters.Length];
+            if (arguments == null) arguments = new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++) arguments[i] = ResolveParameterInfo(container, parameters[i]);
             return arguments;
         }
