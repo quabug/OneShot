@@ -124,7 +124,8 @@ namespace OneShot
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
         {
-            return ResolveGroup(container, type).First();
+            var creator = container.FindFirstCreatorsInHierarchy(type);
+            return creator != null ? creator() : throw new ArgumentException($"{type.Name} have not been registered yet");
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container)
@@ -261,17 +262,29 @@ namespace OneShot
             }
         }
 
+        private static Func<object> FindFirstCreatorsInHierarchy(this Container container, Type type)
+        {
+            do
+            {
+                var creators = container.GetOrCreateResolver(type);
+                if (creators.Count > 0) return creators[0];
+            } while (_containerParentMap.TryGetValue(container, out container));
+            return null;
+        }
+
         // TODO: check circular dependency
         internal static Func<object> CreateInstance(this Container container, ConstructorInfo ci)
         {
             var parameters = ci.GetParameters();
-            return () => ci.Invoke(container.ResolveParameterInfos(parameters));
+            var arguments = new object[parameters.Length];
+            return () => ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
         }
 
         internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter)
         {
-            var argument = container.ResolveGroupWithoutException(parameter.ParameterType).FirstOrDefault();
-            if (argument != null) return argument;
+            var creator = container.FindFirstCreatorsInHierarchy(parameter.ParameterType);
+            if (creator != null) return creator();
+
             if (parameter.ParameterType.IsArray)
             {
                 var elementType = parameter.ParameterType.GetElementType();
@@ -287,9 +300,11 @@ namespace OneShot
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, object[] arguments = null)
         {
-            return parameters.Select(parameter => ResolveParameterInfo(container, parameter)).ToArray();
+            arguments ??= new object[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++) arguments[i] = ResolveParameterInfo(container, parameters[i]);
+            return arguments;
         }
     }
 
