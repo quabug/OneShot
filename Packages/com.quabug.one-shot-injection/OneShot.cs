@@ -32,12 +32,7 @@ namespace OneShot
     public sealed class Container : IDisposable
     {
         internal readonly List<IDisposable> DisposableInstances = new List<IDisposable>();
-        public void Dispose()
-        {
-            this.DisposeContainer();
-            foreach (var instance in DisposableInstances) instance.Dispose();
-            DisposableInstances.Clear();
-        }
+        public void Dispose() => this.DisposeContainer();
     }
 
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
@@ -268,6 +263,8 @@ namespace OneShot
             {
                 _containerResolvers.Remove(disposed);
                 _containerParentMap.Remove(disposed);
+                foreach (var instance in disposed.DisposableInstances) instance.Dispose();
+                disposed.DisposableInstances.Clear();
             }
 
             bool IsDescendant(Container check)

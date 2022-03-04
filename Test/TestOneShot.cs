@@ -527,5 +527,21 @@ namespace OneShot.Test
             Assert.AreEqual(1, disposable1.DisposedCount);
             Assert.AreEqual(1, childDisposable1.DisposedCount);
         }
+
+        [Test]
+        public void should_dispose_all_instances_in_hierarchy_of_container()
+        {
+            var container = new Container();
+            var childContainer = container.CreateChildContainer();
+            container.Register<Disposable>().AsSelf();
+            var disposable1 = container.Resolve<Disposable>();
+            var disposable2 = container.Resolve<Disposable>();
+            var childDisposable = childContainer.Resolve<Disposable>();
+
+            container.Dispose();
+            Assert.AreEqual(1, disposable1.DisposedCount);
+            Assert.AreEqual(1, disposable2.DisposedCount);
+            Assert.AreEqual(1, childDisposable.DisposedCount);
+        }
     }
 }
