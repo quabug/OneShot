@@ -24,6 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using JetBrains.Annotations;
 
 namespace OneShot
@@ -108,6 +109,7 @@ namespace OneShot
             object ResolveScopeInstance(Container container, Type contractType)
             {
                 if (container == _Container) return lazyValue.Value;
+                // register on runtime should be thread safe?
                 container.Register(_ConcreteType).Scope().As(contractType);
                 return container.Resolve(contractType);
             }
@@ -123,6 +125,8 @@ namespace OneShot
         private static readonly Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>> _containerResolvers =
             new Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>>()
         ;
+
+        [ThreadStatic] private static HashSet<Type> _circularCheckSet;
 
         [NotNull] public static Container CreateChildContainer([NotNull] this Container container)
         {
@@ -143,8 +147,11 @@ namespace OneShot
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
         {
+            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
             var creator = container.FindFirstCreatorsInHierarchy(type);
-            return creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
+            var @object = creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
+            _circularCheckSet.Clear();
+            return @object;
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container)
@@ -154,8 +161,11 @@ namespace OneShot
 
         [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
         {
+            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
             var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
-            return creators.Select(creator => creator(container, type));
+            var @object = creators.Select(creator => creator(container, type));
+            _circularCheckSet.Clear();
+            return @object;
         }
 
         [NotNull] public static IEnumerable<object> ResolveGroup([NotNull] this Container container, Type type)
@@ -190,13 +200,14 @@ namespace OneShot
             var ci = FindConstructorInfo(type);
             return container.Register(type, CreateInstance());
 
-            // TODO: check circular dependency
             Func<Container, Type, object> CreateInstance()
             {
                 var parameters = ci.GetParameters();
                 var arguments = new object[parameters.Length];
                 return (resolveContainer, _) =>
                 {
+                    if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
+                    _circularCheckSet.Add(type);
                     var instance = ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
                     if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                     return instance;
@@ -428,5 +439,14 @@ namespace OneShot
             }
             return value;
         }
+    }
+
+    [Serializable]
+    public class CircularDependencyException : Exception
+    {
+        public CircularDependencyException() {}
+        public CircularDependencyException(string message) : base(message) {}
+        public CircularDependencyException(string message, Exception inner) : base(message, inner) {}
+        protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) {}
     }
 }
