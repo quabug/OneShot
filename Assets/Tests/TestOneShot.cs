@@ -347,21 +347,52 @@ namespace OneShot.Test
         public void should_inject_and_call_function()
         {
             var container = new Container();
-            Func<int, int> returnInt = value => value * 2;
             container.RegisterInstance(10).AsSelf();
-            Assert.AreEqual(20, container.Call<int>(returnInt));
+            Assert.AreEqual(20, container.CallFunc<Func<int, int>>(v => v * 2));
         }
+
+        [Test]
+        public void should_inject_and_call_func_with_default_argument()
+        {
+            var container = new Container();
+            container.RegisterInstance(100).AsSelf();
+            Assert.AreEqual(200f, container.CallFunc<Func<int, float, float>>(AddFunc));
+        }
+
+        float AddFunc(int a, float b = 100) => a + b;
+
+#if UNITY_EDITOR
+        [Test]
+        public void unity_mono_is_not_able_to_resolve_default_parameter_of_local_function()
+        {
+            var container = new Container();
+            container.RegisterInstance(100).AsSelf();
+            Assert.Catch<Exception>(() => container.CallFunc<Func<int, float, float>>(LocalAddFunc));
+            float LocalAddFunc(int a, float b = 100) => a + b;
+        }
+#endif
 
         [Test]
         public void should_inject_and_call_action()
         {
             var container = new Container();
             var intValue = 0;
-            Action<int> action = value => intValue = value * 2;
             container.RegisterInstance(10).AsSelf();
-            container.CallAction(action);
+            container.CallAction<Action<int>>(value => intValue = value * 2);
             Assert.AreEqual(20, intValue);
         }
+
+        [Test]
+        public void should_inject_and_call_action_with_default_argument()
+        {
+            var container = new Container();
+            container.RegisterInstance(10).AsSelf();
+            container.CallAction<Action<int, float>>(AddAction);
+            Assert.AreEqual(30f, _value);
+        }
+
+        private float _value;
+        void AddAction(int a, float b = 20) => _value = a + b;
 
         [Test]
         public void should_instantiate_by_type()
