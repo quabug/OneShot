@@ -20,6 +20,9 @@
 [Aa]ssets/Plugins/Editor/JetBrains*
 /.idea
 
+# CI
+/artifacts
+
 # Visual Studio cache directory
 .vs/
 
