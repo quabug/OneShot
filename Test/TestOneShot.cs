@@ -347,9 +347,17 @@ namespace OneShot.Test
         public void should_inject_and_call_function()
         {
             var container = new Container();
-            Func<int, int> returnInt = value => value * 2;
             container.RegisterInstance(10).AsSelf();
-            Assert.AreEqual(20, container.Call<int>(returnInt));
+            Assert.AreEqual(20, container.CallFunc<Func<int, int>>(value => value * 2));
+        }
+
+        [Test]
+        public void should_inject_and_call_func_with_default_argument()
+        {
+            var container = new Container();
+            container.RegisterInstance(100).AsSelf();
+            Assert.AreEqual(200f, container.CallFunc<Func<int, float, float>>(Add));
+            float Add(int a, float b = 100) => a + b;
         }
 
         [Test]
@@ -357,10 +365,20 @@ namespace OneShot.Test
         {
             var container = new Container();
             var intValue = 0;
-            Action<int> action = value => intValue = value * 2;
             container.RegisterInstance(10).AsSelf();
-            container.CallAction(action);
+            container.CallAction<Action<int>>(value => intValue = value * 2);
             Assert.AreEqual(20, intValue);
+        }
+
+        [Test]
+        public void should_inject_and_call_action_with_default_argument()
+        {
+            var container = new Container();
+            var value = 0f;
+            container.RegisterInstance(10).AsSelf();
+            container.CallAction<Action<int, float>>(Add);
+            Assert.AreEqual(30f, value);
+            void Add(int a, float b = 20) => value = a + b;
         }
 
         [Test]

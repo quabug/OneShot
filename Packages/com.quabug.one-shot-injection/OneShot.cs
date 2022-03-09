@@ -215,24 +215,29 @@ namespace OneShot
             return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
         }
 
+        [Obsolete("use CallFunc<T>")]
         public static object Call([NotNull] this Container container, Delegate func)
         {
-            var invoke = func.GetType().GetMethod("Invoke");
-            if (invoke.ReturnType == typeof(void)) throw new ArgumentException();
-            return invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
+            return CallFunc(container, func);
         }
 
+        [Obsolete("use CallFunc<T>")]
         public static TReturn Call<TReturn>([NotNull] this Container container, Delegate func)
         {
-            var invoke = func.GetType().GetMethod("Invoke");
-            if (!typeof(TReturn).IsAssignableFrom(invoke.ReturnType)) throw new ArgumentException();
-            return (TReturn) invoke.Invoke(func, container.ResolveParameterInfos(invoke.GetParameters()));
+            return (TReturn) CallFunc(container, func);
         }
 
-        public static void CallAction([NotNull] this Container container, Delegate action)
+        public static object CallFunc<T>([NotNull] this Container container, T func) where T : Delegate
         {
-            var invoke = action.GetType().GetMethod("Invoke");
-            invoke.Invoke(action, container.ResolveParameterInfos(invoke.GetParameters()));
+            var method = func.Method;
+            if (method.ReturnType == typeof(void)) throw new ArgumentException();
+            return method.Invoke(func.Target, container.ResolveParameterInfos(method.GetParameters()));
+        }
+
+        public static void CallAction<T>([NotNull] this Container container, T action) where T : Delegate
+        {
+            var method = action.Method;
+            method.Invoke(action.Target, container.ResolveParameterInfos(method.GetParameters()));
         }
 
         public static object Instantiate([NotNull] this Container container, Type type)
