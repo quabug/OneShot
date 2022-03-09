@@ -1,3 +1,6 @@
+[![NuGet Badge](https://buildstats.info/nuget/OneShot)](https://www.nuget.org/packages/OneShot/)
+[![openupm](https://img.shields.io/npm/v/com.quabug.one-shot-injection?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.quabug.one-shot-injection/)
+
 # One Shot Dependency Injection
 A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 
