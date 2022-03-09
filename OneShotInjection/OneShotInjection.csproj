@@ -7,6 +7,11 @@
         <Authors>quabug</Authors>
         <TargetFrameworks>net48;net5.0;netcoreapp3.1;netstandard2.0;netstandard2.1</TargetFrameworks>
         <LangVersion>7.3</LangVersion>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Title>OneShot</Title>
+        <Description>A single file DI container</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/quabug/OneShot</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
@@ -17,6 +22,14 @@
       <Compile Include="..\Packages\com.quabug.one-shot-injection\OneShot.cs">
         <Link>OneShot.cs</Link>
       </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\README.md">
+        <Link>README.md</Link>
+        <Pack>true</Pack>
+        <PackagePath>README.md</PackagePath>
+      </Content>
     </ItemGroup>
 
 </Project>
