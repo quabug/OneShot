@@ -388,11 +388,11 @@ namespace OneShot.Test
             var container = new Container();
             container.RegisterInstance(10).AsSelf();
             container.CallAction<Action<int, float>>(AddAction);
-            Assert.AreEqual(30f, value);
+            Assert.AreEqual(30f, _value);
         }
 
-        private float value = 0;
-        void AddAction(int a, float b = 20) => value = a + b;
+        private float _value;
+        void AddAction(int a, float b = 20) => _value = a + b;
 
         [Test]
         public void should_instantiate_by_type()
