@@ -227,6 +227,7 @@ namespace OneShot
             return (TReturn) CallFunc(container, func);
         }
 
+        // Unity/Mono: local function with default parameter is not supported by Mono?
         public static object CallFunc<T>([NotNull] this Container container, T func) where T : Delegate
         {
             var method = func.Method;
@@ -234,6 +235,7 @@ namespace OneShot
             return method.Invoke(func.Target, container.ResolveParameterInfos(method.GetParameters()));
         }
 
+        // Unity/Mono: local function with default parameter is not supported by Mono?
         public static void CallAction<T>([NotNull] this Container container, T action) where T : Delegate
         {
             var method = action.Method;

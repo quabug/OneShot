@@ -348,7 +348,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             container.RegisterInstance(10).AsSelf();
-            Assert.AreEqual(20, container.CallFunc<Func<int, int>>(value => value * 2));
+            Assert.AreEqual(20, container.CallFunc<Func<int, int>>(v => v * 2));
         }
 
         [Test]
@@ -356,9 +356,21 @@ namespace OneShot.Test
         {
             var container = new Container();
             container.RegisterInstance(100).AsSelf();
-            Assert.AreEqual(200f, container.CallFunc<Func<int, float, float>>(Add));
-            float Add(int a, float b = 100) => a + b;
+            Assert.AreEqual(200f, container.CallFunc<Func<int, float, float>>(AddFunc));
         }
+
+        float AddFunc(int a, float b = 100) => a + b;
+
+#if UNITY_EDITOR
+        [Test]
+        public void unity_mono_is_not_able_to_resolve_default_parameter_of_local_function()
+        {
+            var container = new Container();
+            container.RegisterInstance(100).AsSelf();
+            Assert.Catch<Exception>(() => container.CallFunc<Func<int, float, float>>(LocalAddFunc));
+            float LocalAddFunc(int a, float b = 100) => a + b;
+        }
+#endif
 
         [Test]
         public void should_inject_and_call_action()
@@ -374,12 +386,13 @@ namespace OneShot.Test
         public void should_inject_and_call_action_with_default_argument()
         {
             var container = new Container();
-            var value = 0f;
             container.RegisterInstance(10).AsSelf();
-            container.CallAction<Action<int, float>>(Add);
+            container.CallAction<Action<int, float>>(AddAction);
             Assert.AreEqual(30f, value);
-            void Add(int a, float b = 20) => value = a + b;
         }
+
+        private float value = 0;
+        void AddAction(int a, float b = 20) => value = a + b;
 
         [Test]
         public void should_instantiate_by_type()
