@@ -3,7 +3,7 @@
     <PropertyGroup>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>2.0.2</Version>
+        <Version>2.0.3</Version>
         <Authors>quabug</Authors>
         <TargetFrameworks>net48;net5.0;netcoreapp3.1;netstandard2.0;netstandard2.1</TargetFrameworks>
     </PropertyGroup>
