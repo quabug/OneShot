@@ -10,7 +10,8 @@ A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 
 ## Installation
 - Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
-- [Unity-Only] or follow instructions on [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection) to install it as a package of Unity.
+- [Unity only] or follow instructions on [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection) to install it as a package of Unity.
+- [.NET only] or follow instruction on [NuGet](https://www.nuget.org/packages/OneShot/) to install it for .NET project.
 
 ## Usage
 [Test Cases](Test/TestOneShot.cs)
