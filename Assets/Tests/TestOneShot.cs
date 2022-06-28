@@ -585,7 +585,60 @@ namespace OneShot.Test
         {
             var container = new Container();
             container.Register<TypeA>().Singleton().AsInterfaces();
-            container.InjectAll(new InjectMethod());
+            Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
+        }
+        //
+        // [Test]
+        // public void should_create_instance_with_additional_parameters()
+        // {
+        //     var container = new Container();
+        //     container.Register<DefaultConstructor>().Singleton().AsSelf().With(new TypeA());
+        //     Assert.DoesNotThrow(() => container.Resolve<DefaultConstructor>());
+        // }
+
+        class InjectInt
+        {
+            public int Value;
+            public InjectInt(int value) => Value = value;
+        }
+        
+        [Test]
+        public void should_create_singleton_instance_based_on_registered_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Singleton().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(123));
+        }
+        
+        [Test]
+        public void should_create_scoped_instance_based_on_resolved_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Scope().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
+        }
+        
+        [Test]
+        public void should_create_transient_instance_based_on_resolved_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Transient().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
         }
     }
 }
