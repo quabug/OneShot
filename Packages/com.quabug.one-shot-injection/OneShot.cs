@@ -201,6 +201,7 @@ namespace OneShot
                 var arguments = new object[parameters.Length];
                 return (resolveContainer, _) =>
                 {
+                    if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
                     if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
                     _circularCheckSet.Add(type);
                     var instance = ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
@@ -290,7 +291,7 @@ namespace OneShot
             ConstructorInfo ci = null;
             if (constructors.Length == 1) ci = constructors[0];
             else if (constructors.Length > 1) ci = constructors.Single(c => c.GetCustomAttribute<InjectAttribute>() != null);
-            if (ci == null) throw new NotSupportedException();
+            if (ci == null) throw new NotSupportedException($"cannot found constructor of type {type}");
             return ci;
         }
 

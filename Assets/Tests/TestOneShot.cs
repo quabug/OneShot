@@ -574,5 +574,18 @@ namespace OneShot.Test
             Assert.AreEqual(1, disposable2.DisposedCount);
             Assert.AreEqual(1, childDisposable.DisposedCount);
         }
+
+        class InjectMethod
+        {
+            [Inject] void Inject(InterfaceA _) {}
+        }
+        
+        [Test]
+        public void should_able_to_inject_without_resolve()
+        {
+            var container = new Container();
+            container.Register<TypeA>().Singleton().AsInterfaces();
+            container.InjectAll(new InjectMethod());
+        }
     }
 }
