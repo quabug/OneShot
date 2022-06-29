@@ -7,15 +7,22 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-2022]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v1
+    - uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.x
+    - uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 5.0.x
+    - uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
