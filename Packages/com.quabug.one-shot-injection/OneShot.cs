@@ -204,7 +204,7 @@ namespace OneShot
                     if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
                     if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
                     _circularCheckSet.Add(type);
-                    var instance = ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
+                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments));
                     if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                     return instance;
                 };
@@ -214,18 +214,6 @@ namespace OneShot
         public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
         {
             return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
-        }
-
-        [Obsolete("use CallFunc<T>")]
-        public static object Call([NotNull] this Container container, Delegate func)
-        {
-            return CallFunc(container, func);
-        }
-
-        [Obsolete("use CallFunc<T>")]
-        public static TReturn Call<TReturn>([NotNull] this Container container, Delegate func)
-        {
-            return (TReturn) CallFunc(container, func);
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
