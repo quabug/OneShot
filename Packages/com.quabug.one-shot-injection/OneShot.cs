@@ -35,16 +35,30 @@ namespace OneShot
         public void Dispose() => this.DisposeContainer();
     }
 
+    public readonly struct ResolveData
+    {
+        public readonly Container ResolveContainer;
+        public readonly Type ContractType;
+        public readonly object[] AdditionalInstances;
+
+        public ResolveData([NotNull] Container resolveContainer, [NotNull] Type contractType, object[] additionalInstances = null)
+        {
+            ResolveContainer = resolveContainer;
+            ContractType = contractType;
+            AdditionalInstances = additionalInstances ?? Array.Empty<object>();
+        }
+    }
+
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute {}
 
     public class ResolverBuilder
     {
         [NotNull] protected readonly Container _Container;
-        [NotNull] protected readonly Func<Container, Type, object> _Creator;
+        [NotNull] protected readonly Func<ResolveData, object> _Creator;
         [NotNull] protected readonly Type _ConcreteType;
 
-        public ResolverBuilder([NotNull] Container container, [NotNull] Type concreteType, [NotNull] Func<Container, Type, object> creator)
+        public ResolverBuilder([NotNull] Container container, [NotNull] Type concreteType, [NotNull] Func<ResolveData, object> creator)
         {
             _Container = container;
             _Creator = creator;
@@ -75,7 +89,7 @@ namespace OneShot
             return this;
         }
 
-        private List<Func<Container, Type, object>> GetOrCreateResolver(Type type)
+        private List<Func<ResolveData, object>> GetOrCreateResolver(Type type)
         {
             return _Container.GetOrCreateResolver(type);
         }
@@ -83,7 +97,7 @@ namespace OneShot
 
     public class LifetimeBuilder : ResolverBuilder
     {
-        public LifetimeBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, concreteType, creator) {}
+        public LifetimeBuilder([NotNull] Container container, [NotNull] Func<ResolveData, object> creator, [NotNull] Type concreteType) : base(container, concreteType, creator) {}
 
         public ResolverBuilder Transient()
         {
@@ -92,21 +106,21 @@ namespace OneShot
 
         public ResolverBuilder Singleton()
         {
-            var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
-            return new ResolverBuilder(_Container, _ConcreteType, (container, contractType) => lazyValue.Value);
+            var lazyValue = new Lazy<object>(() => _Creator(new ResolveData(_Container, _ConcreteType)));
+            return new ResolverBuilder(_Container, _ConcreteType, _ => lazyValue.Value);
         }
 
         public ResolverBuilder Scope()
         {
-            var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
+            var lazyValue = new Lazy<object>(() => _Creator(new ResolveData(_Container, _ConcreteType)));
             return new ResolverBuilder(_Container, _ConcreteType, ResolveScopeInstance);
 
-            object ResolveScopeInstance(Container container, Type contractType)
+            object ResolveScopeInstance(ResolveData resolveData)
             {
-                if (container == _Container) return lazyValue.Value;
+                if (resolveData.ResolveContainer == _Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(_ConcreteType).Scope().As(contractType);
-                return container.Resolve(contractType);
+                resolveData.ResolveContainer.Register(_ConcreteType).Scope().As(resolveData.ContractType);
+                return resolveData.ResolveContainer.Resolve(resolveData.ContractType);
             }
         }
     }
@@ -117,8 +131,8 @@ namespace OneShot
             new Dictionary<Container, Container>()
         ;
 
-        private static readonly Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>> _containerResolvers =
-            new Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>>()
+        private static readonly Dictionary<Container, Dictionary<Type, List<Func<ResolveData, object>>>> _containerResolvers =
+            new Dictionary<Container, Dictionary<Type, List<Func<ResolveData, object>>>>()
         ;
 
         [ThreadStatic] private static HashSet<Type> _circularCheckSet;
@@ -135,30 +149,30 @@ namespace OneShot
             return CreateChildContainer(container);
         }
 
-        [NotNull] internal static List<Func<Container, Type, object>> GetOrCreateResolver(this Container container, Type type)
+        [NotNull] internal static List<Func<ResolveData, object>> GetOrCreateResolver(this Container container, Type type)
         {
             return _containerResolvers.GetOrCreate(container).GetOrCreate(type);
         }
 
-        [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
+        [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type, params object[] additionalInstances)
         {
             if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
             var creator = container.FindFirstCreatorsInHierarchy(type);
-            var @object = creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
+            var @object = creator != null ? creator(new ResolveData(container, type)) : throw new ArgumentException($"{type.Name} have not been registered yet");
             _circularCheckSet.Clear();
             return @object;
         }
 
-        [NotNull] public static T Resolve<T>([NotNull] this Container container)
+        [NotNull] public static T Resolve<T>([NotNull] this Container container, params object[] additionalInstances)
         {
-            return (T) container.Resolve(typeof(T));
+            return (T) container.Resolve(typeof(T), additionalInstances);
         }
 
         [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
         {
             if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
             var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
-            var @object = creators.Select(creator => creator(container, type));
+            var @object = creators.Select(creator => creator(new ResolveData(container, type)));
             _circularCheckSet.Clear();
             return @object;
         }
@@ -175,12 +189,12 @@ namespace OneShot
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
+        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type concreteType, [NotNull] Func<ResolveData, object> creator)
         {
-            return new LifetimeBuilder(container, creator, type);
+            return new LifetimeBuilder(container, creator, concreteType);
         }
 
-        public static LifetimeBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
+        public static LifetimeBuilder Register<T>([NotNull] this Container container, [NotNull] Func<ResolveData, T> creator) where T : class
         {
             return container.Register(typeof(T), creator);
         }
@@ -190,22 +204,22 @@ namespace OneShot
             return container.Register(typeof(T));
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type)
+        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type concreteType)
         {
-            var ci = FindConstructorInfo(type);
-            return container.Register(type, CreateInstance());
+            var ci = FindConstructorInfo(concreteType);
+            return container.Register(concreteType, CreateInstance());
 
-            Func<Container, Type, object> CreateInstance()
+            Func<ResolveData, object> CreateInstance()
             {
                 var parameters = ci.GetParameters();
                 var arguments = new object[parameters.Length];
-                return (resolveContainer, _) =>
+                return data =>
                 {
                     if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
-                    if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-                    _circularCheckSet.Add(type);
-                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments));
-                    if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
+                    if (_circularCheckSet.Contains(concreteType)) throw new CircularDependencyException($"circular dependency on {concreteType.Name}");
+                    _circularCheckSet.Add(concreteType);
+                    var instance = ci.Invoke(data.ResolveContainer.ResolveParameterInfos(parameters, arguments));
+                    if (instance is IDisposable disposable) data.ResolveContainer.DisposableInstances.Add(disposable);
                     return instance;
                 };
             }
@@ -213,7 +227,7 @@ namespace OneShot
 
         public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
         {
-            return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
+            return new ResolverBuilder(container, instance.GetType(), _ => instance);
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
@@ -283,7 +297,7 @@ namespace OneShot
             return ci;
         }
 
-        private static IEnumerable<List<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
+        private static IEnumerable<List<Func<ResolveData, object>>> FindCreatorsInHierarchy(Container container, Type type)
         {
             for (;;)
             {
@@ -293,7 +307,7 @@ namespace OneShot
             }
         }
 
-        private static Func<Container, Type, object> FindFirstCreatorsInHierarchy(this Container container, Type type)
+        private static Func<ResolveData, object> FindFirstCreatorsInHierarchy(this Container container, Type type)
         {
             do
             {
@@ -307,7 +321,7 @@ namespace OneShot
         {
             var parameterType = parameter.ParameterType;
             var creator = container.FindFirstCreatorsInHierarchy(parameterType);
-            if (creator != null) return creator(container, parameterType);
+            if (creator != null) return creator(new ResolveData(container, parameterType));
 
             if (parameterType.IsArray)
             {
