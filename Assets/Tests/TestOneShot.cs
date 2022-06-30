@@ -655,5 +655,21 @@ namespace OneShot.Test
             subContainer.RegisterInstance(234).AsSelf();
             Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
         }
+
+        class InjectTypeA
+        {
+            [Inject] public void Inject(TypeA _) {}
+        }
+        
+        [Test]
+        public void should_inject_method_to_same_instance_repeatedly()
+        {
+            var container = new Container();
+            container.Register<TypeA>().AsSelf();
+            var instance = new InjectTypeA();
+            container.InjectAll(instance);
+            container.InjectAll(instance);
+            container.InjectAll(instance);
+        }
     }
 }

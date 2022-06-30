@@ -135,7 +135,7 @@ namespace OneShot
             new Dictionary<Container, Dictionary<Type, List<Func<ResolveData, object>>>>()
         ;
 
-        [ThreadStatic] private static HashSet<Type> _circularCheckSet;
+        [ThreadStatic] internal static HashSet<Type> _circularCheckSet;
 
         [NotNull] public static Container CreateChildContainer([NotNull] this Container container)
         {
@@ -215,7 +215,6 @@ namespace OneShot
                 var arguments = new object[parameters.Length];
                 return data =>
                 {
-                    if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
                     if (_circularCheckSet.Contains(concreteType)) throw new CircularDependencyException($"circular dependency on {concreteType.Name}");
                     _circularCheckSet.Add(concreteType);
                     var instance = ci.Invoke(data.ResolveContainer.ResolveParameterInfos(parameters, arguments));
@@ -407,7 +406,9 @@ namespace OneShot
         public void InjectMethods(Container container, object instance)
         {
             CheckInstanceType(instance);
+            if (TypeCreatorRegister._circularCheckSet == null) TypeCreatorRegister._circularCheckSet = new HashSet<Type>();
             foreach (var method in _methods) method.Invoke(instance, container.ResolveParameterInfos(method.GetParameters()));
+            TypeCreatorRegister._circularCheckSet.Clear();
         }
 
         public void InjectAll(Container container, object instance)
