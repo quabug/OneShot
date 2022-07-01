@@ -75,7 +75,7 @@ namespace OneShot.Test
         public void should_resolve_singleton_func()
         {
             var container = new Container();
-            Func<ResolveData, TypeA> createTypeA = _ => new TypeA();
+            Func<Container, Type, TypeA> createTypeA = (c, t) => new TypeA();
             container.Register(createTypeA).Singleton().AsSelf();
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
         }
@@ -159,7 +159,7 @@ namespace OneShot.Test
             container.Register<InjectConstructor>().AsSelf();
             container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>(_ => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
             container.Register<ComplexClass>().AsSelf();
             var complex1 = container.Resolve<ComplexClass>();
             Assert.AreSame(typeA, complex1.A);
@@ -192,7 +192,7 @@ namespace OneShot.Test
             var instance = new TypeA();
             container.RegisterInstance(instance).AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>(_ => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
             Assert.AreEqual(100, container.Resolve<Func<int>>()());
         }
 
@@ -268,21 +268,6 @@ namespace OneShot.Test
             Assert.Catch<CircularDependencyException>(() => container.Resolve<C>());
             Assert.Catch<CircularDependencyException>(() => container.Resolve<D>());
             Assert.Catch<CircularDependencyException>(() => container.Resolve<E>());
-        }
-        
-        private interface IF {}
-        private class F : IF { public F(IG _) {} }
-        private interface IG {}
-        private class G : IG { public G(IF _) {} }
-        
-        [Test]
-        public void should_throw_on_implicit_circular_dependency()
-        {
-            var container = new Container();
-            container.Register<F>().AsInterfaces();
-            container.Register<G>().AsInterfaces();
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<IF>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<IG>());
         }
 
         class Injected
@@ -602,7 +587,7 @@ namespace OneShot.Test
             container.Register<TypeA>().Singleton().AsInterfaces();
             Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
         }
-
+        //
         // [Test]
         // public void should_create_instance_with_additional_parameters()
         // {
