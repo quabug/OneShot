@@ -26,6 +26,9 @@
       <Compile Include="..\Assets\Tests\TestOneShot.cs">
         <Link>TestOneShot.cs</Link>
       </Compile>
+        <Compile Include="..\Assets\Tests\TestWithBuilder.cs">
+            <Link>TestWithBuilder.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

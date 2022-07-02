@@ -105,9 +105,22 @@ namespace OneShot
             {
                 if (container == _Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(_ConcreteType).Scope().As(contractType);
+                container.Register(_ConcreteType, _Creator).Scope().As(contractType);
                 return container.Resolve(contractType);
             }
+        }
+    }
+
+    public class WithBuilder : LifetimeBuilder
+    {
+        public WithBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, creator, concreteType) {}
+        
+        public LifetimeBuilder With(params object[] instances)
+        {
+            if (instances == null || !instances.Any()) return this;
+            var container = _Container.CreateChildContainer();
+            foreach (var instance in instances) container.RegisterInstance(instance).AsSelf().AsInterfaces();
+            return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
         }
     }
 
@@ -120,8 +133,7 @@ namespace OneShot
         private static readonly Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>> _containerResolvers =
             new Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>>()
         ;
-
-        [ThreadStatic] private static HashSet<Type> _circularCheckSet;
+        
 
         [NotNull] public static Container CreateChildContainer([NotNull] this Container container)
         {
@@ -142,11 +154,11 @@ namespace OneShot
 
         [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type)
         {
-            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
-            var creator = container.FindFirstCreatorsInHierarchy(type);
-            var @object = creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
-            _circularCheckSet.Clear();
-            return @object;
+            using (CircularCheck.Create())
+            {
+                var creator = container.FindFirstCreatorsInHierarchy(type);
+                return creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
+            }
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container)
@@ -156,11 +168,11 @@ namespace OneShot
 
         [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
         {
-            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
-            var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
-            var @object = creators.Select(creator => creator(container, type));
-            _circularCheckSet.Clear();
-            return @object;
+            using (CircularCheck.Create())
+            {
+                var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
+                return creators.Select(creator => creator(container, type));
+            }
         }
 
         [NotNull] public static IEnumerable<object> ResolveGroup([NotNull] this Container container, Type type)
@@ -175,22 +187,22 @@ namespace OneShot
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
+        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
         {
-            return new LifetimeBuilder(container, creator, type);
+            return new WithBuilder(container, creator, type);
         }
 
-        public static LifetimeBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
+        public static WithBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
         {
             return container.Register(typeof(T), creator);
         }
 
-        public static LifetimeBuilder Register<T>([NotNull] this Container container)
+        public static WithBuilder Register<T>([NotNull] this Container container)
         {
             return container.Register(typeof(T));
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type)
+        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
             return container.Register(type, CreateInstance());
@@ -201,10 +213,8 @@ namespace OneShot
                 var arguments = new object[parameters.Length];
                 return (resolveContainer, _) =>
                 {
-                    if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
-                    if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-                    _circularCheckSet.Add(type);
-                    var instance = ci.Invoke(container.ResolveParameterInfos(parameters, arguments));
+                    CircularCheck.Check(type);
+                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments));
                     if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                     return instance;
                 };
@@ -216,38 +226,35 @@ namespace OneShot
             return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
         }
 
-        [Obsolete("use CallFunc<T>")]
-        public static object Call([NotNull] this Container container, Delegate func)
-        {
-            return CallFunc(container, func);
-        }
-
-        [Obsolete("use CallFunc<T>")]
-        public static TReturn Call<TReturn>([NotNull] this Container container, Delegate func)
-        {
-            return (TReturn) CallFunc(container, func);
-        }
-
         // Unity/Mono: local function with default parameter is not supported by Mono?
         public static object CallFunc<T>([NotNull] this Container container, T func) where T : Delegate
         {
-            var method = func.Method;
-            if (method.ReturnType == typeof(void)) throw new ArgumentException();
-            return method.Invoke(func.Target, container.ResolveParameterInfos(method.GetParameters()));
+            using (CircularCheck.Create())
+            {
+                var method = func.Method;
+                if (method.ReturnType == typeof(void)) throw new ArgumentException();
+                return method.Invoke(func.Target, container.ResolveParameterInfos(method.GetParameters()));
+            }
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
         public static void CallAction<T>([NotNull] this Container container, T action) where T : Delegate
         {
-            var method = action.Method;
-            method.Invoke(action.Target, container.ResolveParameterInfos(method.GetParameters()));
+            using (CircularCheck.Create())
+            {
+                var method = action.Method;
+                method.Invoke(action.Target, container.ResolveParameterInfos(method.GetParameters()));
+            }
         }
 
         public static object Instantiate([NotNull] this Container container, Type type)
         {
-            var ci = FindConstructorInfo(type);
-            var parameters = ci.GetParameters();
-            return ci.Invoke(container.ResolveParameterInfos(parameters));
+            using (CircularCheck.Create())
+            {
+                var ci = FindConstructorInfo(type);
+                var parameters = ci.GetParameters();
+                return ci.Invoke(container.ResolveParameterInfos(parameters));
+            }
         }
 
         public static T Instantiate<T>([NotNull] this Container container)
@@ -404,8 +411,10 @@ namespace OneShot
 
         public void InjectMethods(Container container, object instance)
         {
-            CheckInstanceType(instance);
-            foreach (var method in _methods) method.Invoke(instance, container.ResolveParameterInfos(method.GetParameters()));
+            using (CircularCheck.Create())
+            {
+                foreach (var method in _methods) method.Invoke(instance, container.ResolveParameterInfos(method.GetParameters()));
+            }
         }
 
         public void InjectAll(Container container, object instance)
@@ -453,5 +462,28 @@ namespace OneShot
         public CircularDependencyException(string message) : base(message) {}
         public CircularDependencyException(string message, Exception inner) : base(message, inner) {}
         protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) {}
+    }
+
+    readonly struct CircularCheck : IDisposable
+    {
+        [ThreadStatic] private static HashSet<Type> _circularCheckSet;
+
+        public static CircularCheck Create()
+        {
+            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
+            _circularCheckSet.Clear();
+            return new CircularCheck();
+        }
+
+        public static void Check(Type type)
+        {
+            if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
+            _circularCheckSet.Add(type);
+        }
+
+        public void Dispose()
+        {
+            _circularCheckSet.Clear();
+        }
     }
 }

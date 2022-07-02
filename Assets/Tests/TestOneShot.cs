@@ -585,7 +585,68 @@ namespace OneShot.Test
         {
             var container = new Container();
             container.Register<TypeA>().Singleton().AsInterfaces();
-            container.InjectAll(new InjectMethod());
+            Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
+        }
+
+        class InjectInt
+        {
+            public int Value;
+            public InjectInt(int value) => Value = value;
+        }
+        
+        [Test]
+        public void should_create_singleton_instance_based_on_registered_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Singleton().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(123));
+        }
+        
+        [Test]
+        public void should_create_scoped_instance_based_on_resolved_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Scope().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
+        }
+        
+        [Test]
+        public void should_create_transient_instance_based_on_resolved_container()
+        {
+            var container = new Container();
+            container.Register<InjectInt>().Transient().AsSelf();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
+            
+            var subContainer = container.CreateChildContainer();
+            subContainer.RegisterInstance(234).AsSelf();
+            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
+        }
+
+        class InjectTypeA
+        {
+            [Inject] public void Inject(TypeA _) {}
+        }
+        
+        [Test]
+        public void should_inject_method_to_same_instance_repeatedly()
+        {
+            var container = new Container();
+            container.Register<TypeA>().AsSelf();
+            var instance = new InjectTypeA();
+            container.InjectAll(instance);
+            container.InjectAll(instance);
+            container.InjectAll(instance);
         }
     }
 }
