@@ -105,9 +105,22 @@ namespace OneShot
             {
                 if (container == _Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(_ConcreteType).Scope().As(contractType);
+                container.Register(_ConcreteType, _Creator).Scope().As(contractType);
                 return container.Resolve(contractType);
             }
+        }
+    }
+
+    public class WithBuilder : LifetimeBuilder
+    {
+        public WithBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, creator, concreteType) {}
+        
+        public LifetimeBuilder With(params object[] instances)
+        {
+            if (instances == null || !instances.Any()) return this;
+            var container = _Container.CreateChildContainer();
+            foreach (var instance in instances) container.RegisterInstance(instance).AsSelf().AsInterfaces();
+            return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
         }
     }
 
@@ -174,22 +187,22 @@ namespace OneShot
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
+        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
         {
-            return new LifetimeBuilder(container, creator, type);
+            return new WithBuilder(container, creator, type);
         }
 
-        public static LifetimeBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
+        public static WithBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
         {
             return container.Register(typeof(T), creator);
         }
 
-        public static LifetimeBuilder Register<T>([NotNull] this Container container)
+        public static WithBuilder Register<T>([NotNull] this Container container)
         {
             return container.Register(typeof(T));
         }
 
-        public static LifetimeBuilder Register([NotNull] this Container container, [NotNull] Type type)
+        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
             return container.Register(type, CreateInstance());

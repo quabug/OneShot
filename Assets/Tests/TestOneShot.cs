@@ -587,14 +587,6 @@ namespace OneShot.Test
             container.Register<TypeA>().Singleton().AsInterfaces();
             Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
         }
-        //
-        // [Test]
-        // public void should_create_instance_with_additional_parameters()
-        // {
-        //     var container = new Container();
-        //     container.Register<DefaultConstructor>().Singleton().AsSelf().With(new TypeA());
-        //     Assert.DoesNotThrow(() => container.Resolve<DefaultConstructor>());
-        // }
 
         class InjectInt
         {
