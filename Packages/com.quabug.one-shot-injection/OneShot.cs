@@ -75,6 +75,17 @@ namespace OneShot
             return this;
         }
 
+        [NotNull] public ResolverBuilder AsBases()
+        {
+            var baseType = _ConcreteType.BaseType;
+            while (baseType != null)
+            {
+                As(baseType);
+                baseType = baseType.BaseType;
+            }
+            return this;
+        }
+
         private List<Func<Container, Type, object>> GetOrCreateResolver(Type type)
         {
             return _Container.GetOrCreateResolver(type);
@@ -119,7 +130,7 @@ namespace OneShot
         {
             if (instances == null || !instances.Any()) return this;
             var container = _Container.CreateChildContainer();
-            foreach (var instance in instances) container.RegisterInstance(instance).AsSelf().AsInterfaces();
+            foreach (var instance in instances) container.RegisterInstance(instance).AsSelf().AsBases().AsInterfaces();
             return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
         }
     }

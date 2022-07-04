@@ -1,6 +1,6 @@
 {
   "name": "com.quabug.one-shot-injection",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "displayName": "One Shot Dependency Injection",
   "description": "A single file DI container",
   "type": "library"
