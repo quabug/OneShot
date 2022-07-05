@@ -648,7 +648,19 @@ namespace OneShot.Test
             container.InjectAll(instance);
             container.InjectAll(instance);
         }
+        
+        class TypeAA : TypeA {}
+        class TypeAAA : TypeAA {}
 
+        [Test]
+        public void should_register_and_resolve_by_bases()
+        {
+            var container = new Container();
+            container.Register<TypeAAA>().AsBases();
+            Assert.That(container.Resolve<TypeAA>(), Is.InstanceOf<TypeAAA>());
+            Assert.That(container.Resolve<TypeA>(), Is.InstanceOf<TypeAAA>());
+        }
+        
         class InjectFloat
         {
             [Inject] public float FloatValue;
