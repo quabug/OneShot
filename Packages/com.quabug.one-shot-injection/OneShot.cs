@@ -362,7 +362,7 @@ namespace OneShot
 
         public static void InjectAll<T>([NotNull] this Container container, T instance)
         {
-            InjectAll(container, instance, typeof(T));
+            InjectAll(container, instance, instance.GetType());
         }
     }
 

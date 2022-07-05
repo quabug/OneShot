@@ -648,5 +648,27 @@ namespace OneShot.Test
             container.InjectAll(instance);
             container.InjectAll(instance);
         }
+
+        class InjectFloat
+        {
+            [Inject] public float FloatValue;
+        }
+
+        class InjectIntFloat : InjectFloat
+        {
+            [Inject] public int IntValue;
+        }
+        
+        [Test]
+        public void should_inject_all_for_instance_by_contract_type()
+        {
+            var container = new Container();
+            container.RegisterInstance(123).AsSelf();
+            container.RegisterInstance(222.222f).AsSelf();
+            var instance = new InjectIntFloat();
+            container.InjectAll((InjectFloat)instance);
+            Assert.That(instance.IntValue, Is.EqualTo(123));
+            Assert.That(instance.FloatValue, Is.EqualTo(222.222f));
+        }
     }
 }
