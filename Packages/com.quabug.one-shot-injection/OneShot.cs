@@ -35,8 +35,13 @@ namespace OneShot
         public void Dispose() => this.DisposeContainer();
     }
 
-    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
-    public sealed class InjectAttribute : Attribute {}
+    public sealed class InjectAttribute :
+#if UNITY_5_3_OR_NEWER
+        UnityEngine.Scripting.PreserveAttribute
+#else
+        Attribute
+#endif
+    {}
 
     public class ResolverBuilder
     {
@@ -373,7 +378,7 @@ namespace OneShot
 
         public static void InjectAll<T>([NotNull] this Container container, T instance)
         {
-            InjectAll(container, instance, typeof(T));
+            InjectAll(container, instance, instance.GetType());
         }
     }
 
