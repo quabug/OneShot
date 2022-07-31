@@ -37,6 +37,7 @@ container.Register<Foo>().Singleton().AsSelf(); // register a singleton of `Foo`
 container.Register<Bar>().AsSelf(); // register transient of `Bar`
 container.Register<Func<int>>((resolveContainer, contractType) => container.Resolve<Foo>().GetIntValue).AsSelf(); // register `Func<int>`
 conatiner.Register<Foo>().As<IFoo>(); // register interface of `IFoo`
+container.Register<Foo>().With(123, new Bar()).AsSelf(); // register with certain instances
 ```
 
 ### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L37)
