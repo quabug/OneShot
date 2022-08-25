@@ -14,7 +14,7 @@ A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 - [.NET only] or follow instruction on [NuGet](https://www.nuget.org/packages/OneShot/) to install it for .NET project.
 
 ## Usage
-[Test Cases](Test/TestOneShot.cs)
+[Test Cases](Assets/Tests)
 
 ### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L32)
 A scope mark for registered types.
