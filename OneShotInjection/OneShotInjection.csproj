@@ -3,15 +3,15 @@
     <PropertyGroup>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>2.1.2</Version>
+        <Version>2.2.0</Version>
         <Authors>quabug</Authors>
-        <TargetFrameworks>net5.0;netstandard2.0;netstandard2.1</TargetFrameworks>
         <LangVersion>7.3</LangVersion>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <Title>OneShot</Title>
         <Description>A single file DI container</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/quabug/OneShot</RepositoryUrl>
+        <TargetFramework>netstandard2.0</TargetFramework>
     </PropertyGroup>
 
     <ItemGroup>
