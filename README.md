@@ -68,7 +68,7 @@ container.InjectAll(foo); // inject its fields, properteis and methods
 ``` c#
 class Foo {}
 interface TypedLabelFoo : ILabel<Foo> {} // declare type-specific label, will throw on labeling other type
-interface AnyLabel<T> : ILabel<T> {} // declare label
+interface AnyLabel<T> : ILabel<T> {} // declare generic-typed label, works on any types
 
 class Bar
 {
