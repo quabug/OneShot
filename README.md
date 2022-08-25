@@ -67,12 +67,17 @@ container.InjectAll(foo); // inject its fields, properteis and methods
 ### [Label](Packages/com.quabug.one-shot-injection/OneShot.cs#L45)
 ``` c#
 class Foo {}
-interface TypedLabelFoo : ILabel<Foo> {}
-interface AnyLabel<T> : ILabel<T> {}
+interface TypedLabelFoo : ILabel<Foo> {} // declare type-specific label, will throw on labeling other type
+interface AnyLabel<T> : ILabel<T> {} // declare label
 
 class Bar
 {
-    public Bar(Foo foo, [Inject(typeof(TypedLabelFoo))] Foo labeledFoo, [Inject(AnyLabel<>)] Foo anyLabeledFoo, [Inject(typeof(AnyLabel<>)] int anyLabeledInt) {}
+    public Bar(
+        Foo foo, // un-labeled type
+        [Inject(typeof(TypedLabelFoo))] Foo labeledFoo, // labeled type with type-specific label
+        [Inject(AnyLabel<>)] Foo anyLabeledFoo, // labeled type
+        [Inject(typeof(AnyLabel<>)] int anyLabeledInt  // labeled type
+    ) {}
 }
 
 container.Register<Foo>().AsSelf(typeof(TypedLabel)); // register typed label foo
