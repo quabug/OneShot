@@ -18,12 +18,21 @@ jobs:
       - uses: actions/checkout@master
       - uses: actions/cache@v2
         with:
-          path: Library
-          key: Library
+          path: |
+            Library
+            CodeCoverage
+          key: LibraryAndCoverage
       - uses: game-ci/unity-test-runner@v2
+        id: unity-test
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           customParameters: -scriptingBackend ${{ matrix.backend }} -testCategory "!benchmark"
           projectPath: .
           githubToken: ${{ secrets.GITHUB_TOKEN }}
+          coverageOptions: 'generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;pathFilters:+**/Packages/**'
+      - uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: Coverage results for ${{ matrix.backend }}
+          path: ${{ steps.unity-test.outputs.coveragePath }}
