@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\Assets\Tests\*.cs">
+        <Compile Include="..\..\Assets\Tests\*.cs">
             <Link>%(FileName)%(Extension)</Link>
         </Compile>
     </ItemGroup>

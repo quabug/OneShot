@@ -19,13 +19,13 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="..\Packages\com.quabug.one-shot-injection\OneShot.cs">
+      <Compile Include="..\..\Packages\com.quabug.one-shot-injection\OneShot.cs">
         <Link>OneShot.cs</Link>
       </Compile>
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\README.md">
+      <Content Include="..\..\README.md">
         <Link>README.md</Link>
         <Pack>true</Pack>
         <PackagePath>README.md</PackagePath>
