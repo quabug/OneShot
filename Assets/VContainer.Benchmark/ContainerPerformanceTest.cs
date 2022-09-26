@@ -253,6 +253,31 @@ namespace VvContainer.Benchmark
                 .SampleGroup("VContainer")
                 .GC()
                 .Run();
+            
+            var container = new OneShot.Container();
+            container.Register<Singleton1>().Singleton().As<ISingleton1>();
+            container.Register<Singleton2>().Singleton().As<ISingleton2>();
+            container.Register<Singleton3>().Singleton().As<ISingleton3>();
+            container.Register<Transient1>().Transient().As<ITransient1>();
+            container.Register<Transient2>().Transient().As<ITransient2>();
+            container.Register<Transient3>().Transient().As<ITransient3>();
+            container.Register<Combined1>().Transient().As<ICombined1>();
+            container.Register<Combined2>().Transient().As<ICombined2>();
+            container.Register<Combined3>().Transient().As<ICombined3>();
+
+            Measure
+                .Method(() =>
+                {
+                    for (var i = 0; i < N; i++)
+                    {
+                        container.Resolve<ICombined1>();
+                        container.Resolve<ICombined2>();
+                        container.Resolve<ICombined3>();
+                    }
+                })
+                .SampleGroup("OneShot")
+                .GC()
+                .Run();
         }
 
         [Test]
