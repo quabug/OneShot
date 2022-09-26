@@ -104,22 +104,26 @@ namespace OneShot
 
 #region Register
 
-        [NotNull] public WithBuilder Register([NotNull] Type type, [NotNull] Resolver creator)
+        [NotNull, MustUseReturnValue]
+        public WithBuilder Register([NotNull] Type type, [NotNull] Resolver creator)
         {
             return new WithBuilder(this, creator, type);
         }
 
-        [NotNull] public WithBuilder Register<T>([NotNull] Func<Container, Type, T> creator) where T : class
+        [NotNull, MustUseReturnValue]
+        public WithBuilder Register<T>([NotNull] Func<Container, Type, T> creator) where T : class
         {
             return Register(typeof(T), creator);
         }
 
-        [NotNull] public WithBuilder Register<T>()
+        [NotNull, MustUseReturnValue]
+        public WithBuilder Register<T>()
         {
             return Register(typeof(T));
         }
 
-        [NotNull] public WithBuilder Register([NotNull] Type type)
+        [NotNull, MustUseReturnValue]
+        public WithBuilder Register([NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
             return Register(type, CreateInstance());
@@ -138,7 +142,8 @@ namespace OneShot
             }
         }
 
-        [NotNull] public ResolverBuilder RegisterInstance<T>([NotNull] T instance)
+        [NotNull, MustUseReturnValue]
+        public ResolverBuilder RegisterInstance<T>([NotNull] T instance)
         {
             return new ResolverBuilder(this, instance.GetType(), (c, t) => instance);
         }
@@ -329,18 +334,21 @@ namespace OneShot
     {
         public LifetimeBuilder([NotNull] Container container, [NotNull] Resolver creator, [NotNull] Type concreteType) : base(container, concreteType, creator) {}
 
-        [NotNull] public ResolverBuilder Transient()
+        [NotNull, MustUseReturnValue]
+        public ResolverBuilder Transient()
         {
             return this;
         }
 
-        [NotNull] public ResolverBuilder Singleton()
+        [NotNull, MustUseReturnValue]
+        public ResolverBuilder Singleton()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
             return new ResolverBuilder(_Container, _ConcreteType, (container, contractType) => lazyValue.Value);
         }
 
-        [NotNull] public ResolverBuilder Scope()
+        [NotNull, MustUseReturnValue]
+        public ResolverBuilder Scope()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
             return new ResolverBuilder(_Container, _ConcreteType, ResolveScopeInstance);
@@ -359,12 +367,14 @@ namespace OneShot
     {
         public WithBuilder([NotNull] Container container, [NotNull] Resolver creator, [NotNull] Type concreteType) : base(container, creator, concreteType) {}
         
-        [NotNull] public LifetimeBuilder With([NotNull, ItemNotNull] params object[] instances)
+        [NotNull, MustUseReturnValue]
+        public LifetimeBuilder With([NotNull, ItemNotNull] params object[] instances)
         {
             return WithImpl(instances.Select(instance => (instance, (Type)null)));
         }
         
-        [NotNull] public LifetimeBuilder With([NotNull] params (object instance, Type label)[] labeledInstances)
+        [NotNull, MustUseReturnValue]
+        public LifetimeBuilder With([NotNull] params (object instance, Type label)[] labeledInstances)
         {
             return WithImpl(labeledInstances);
         }
