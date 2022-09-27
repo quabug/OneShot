@@ -103,17 +103,20 @@ namespace OneShot
     {
         public LifetimeBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, concreteType, creator) {}
 
+        [NotNull, MustUseReturnValue]
         public ResolverBuilder Transient()
         {
             return this;
         }
 
+        [NotNull, MustUseReturnValue]
         public ResolverBuilder Singleton()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
             return new ResolverBuilder(_Container, _ConcreteType, (container, contractType) => lazyValue.Value);
         }
 
+        [NotNull, MustUseReturnValue]
         public ResolverBuilder Scope()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
@@ -133,11 +136,13 @@ namespace OneShot
     {
         public WithBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, creator, concreteType) {}
         
+        [NotNull, MustUseReturnValue]
         public LifetimeBuilder With(params object[] instances)
         {
             return WithImpl(instances.Select(instance => (instance, (Type)null)));
         }
         
+        [NotNull, MustUseReturnValue]
         public LifetimeBuilder With(params (object instance, Type label)[] labeledInstances)
         {
             return WithImpl(labeledInstances);
@@ -215,21 +220,25 @@ namespace OneShot
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
+        [NotNull, MustUseReturnValue]
         public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
         {
             return new WithBuilder(container, creator, type);
         }
 
+        [NotNull, MustUseReturnValue]
         public static WithBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
         {
             return container.Register(typeof(T), creator);
         }
 
+        [NotNull, MustUseReturnValue]
         public static WithBuilder Register<T>([NotNull] this Container container)
         {
             return container.Register(typeof(T));
         }
 
+        [NotNull, MustUseReturnValue]
         public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
@@ -249,6 +258,7 @@ namespace OneShot
             }
         }
 
+        [NotNull, MustUseReturnValue]
         public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
         {
             return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
@@ -275,6 +285,7 @@ namespace OneShot
             }
         }
 
+        [NotNull]
         public static object Instantiate([NotNull] this Container container, Type type)
         {
             using (CircularCheck.Create())
@@ -285,6 +296,7 @@ namespace OneShot
             }
         }
 
+        [NotNull]
         public static T Instantiate<T>([NotNull] this Container container)
         {
             return (T) container.Instantiate(typeof(T));
@@ -385,12 +397,12 @@ namespace OneShot
     {
         private static readonly Dictionary<Type, TypeInjector> _injectors = new Dictionary<Type, TypeInjector>();
 
-        public static void InjectAll([NotNull] this Container container, object instance, Type instanceType)
+        public static void InjectAll([NotNull] this Container container, [NotNull] object instance, [NotNull] Type instanceType)
         {
             _injectors.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
         }
 
-        public static void InjectAll<T>([NotNull] this Container container, T instance)
+        public static void InjectAll<T>([NotNull] this Container container, [NotNull] T instance)
         {
             InjectAll(container, instance, instance.GetType());
         }
