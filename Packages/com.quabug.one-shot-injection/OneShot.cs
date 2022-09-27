@@ -188,15 +188,47 @@ namespace OneShot
         {
             using (CircularCheck.Create())
             {
-                var creatorKey = label == null ? type : label.CreateLabelType(type);
-                var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
-                return creator != null ? creator(container, type) : throw new ArgumentException($"{type.Name} have not been registered yet");
+                var instance = ResolveImpl(container, type, label);
+                if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
+                return instance;
             }
         }
 
         [NotNull] public static T Resolve<T>([NotNull] this Container container, Type label = null)
         {
             return (T) container.Resolve(typeof(T), label);
+        }
+
+        [CanBeNull] private static object ResolveImpl(this Container container, Type type, Type label = null)
+        {
+            {
+                var creatorKey = label == null ? type : label.CreateLabelType(type);
+                var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
+                if (creator != null) return creator(container, type);
+            }
+
+            if (type.IsArray)
+            {
+                var elementType = type.GetElementType();
+                var arrayArgument = container.ResolveGroupWithoutException(elementType);
+                if (arrayArgument.Any())
+                {
+                    var source = arrayArgument.ToArray();
+                    var dest = Array.CreateInstance(elementType, source.Length);
+                    Array.Copy(source, dest, source.Length);
+                    return dest;
+                }
+            }
+
+            if (type.IsGenericType)
+            {
+                var generic = type.GetGenericTypeDefinition();
+                var creatorKey = label == null ? generic : label.CreateLabelType(generic);
+                var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
+                if (creator != null) return creator(container, type);
+            }
+
+            return null;
         }
 
         [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
@@ -366,22 +398,8 @@ namespace OneShot
         {
             var label = parameter.GetCustomAttribute<InjectAttribute>()?.Label;
             var parameterType = parameter.ParameterType;
-            var creatorKey = label == null ? parameterType : label.CreateLabelType(parameterType);
-            var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
-            if (creator != null) return creator(container, parameterType);
-
-            if (parameterType.IsArray)
-            {
-                var elementType = parameterType.GetElementType();
-                var arrayArgument = container.ResolveGroupWithoutException(elementType);
-                if (arrayArgument.Any())
-                {
-                    var source = arrayArgument.ToArray();
-                    var dest = Array.CreateInstance(elementType, source.Length);
-                    Array.Copy(source, dest, source.Length);
-                    return dest;
-                }
-            }
+            var instance = container.ResolveImpl(parameterType, label);
+            if (instance != null) return instance;
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
