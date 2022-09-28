@@ -3,7 +3,7 @@
     <PropertyGroup>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>2.3.0</Version>
+        <Version>2.3.1</Version>
         <Authors>quabug</Authors>
         <LangVersion>7.3</LangVersion>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -12,7 +12,6 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/quabug/OneShot</RepositoryUrl>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <PackageVersion>2.3.0</PackageVersion>
     </PropertyGroup>
 
     <ItemGroup>
