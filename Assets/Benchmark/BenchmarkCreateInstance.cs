@@ -6,6 +6,7 @@ using NUnit.Framework;
 using Unity.PerformanceTesting;
 using UnityEngine;
 
+[Category("benchmark")]
 public class BenchmarkCreateInstance
 {
     class Empty {}

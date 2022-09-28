@@ -69,3 +69,5 @@ InitTestScene*.unity.meta
 
 obj
 bin
+
+!/Standard/**
