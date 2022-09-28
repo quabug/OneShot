@@ -280,10 +280,11 @@ namespace OneShot
             {
                 var parameters = ci.GetParameters();
                 var arguments = new object[parameters.Length];
+                var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
                 return (resolveContainer, _) =>
                 {
                     CircularCheck.Check(type);
-                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments));
+                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments, labels));
                     if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                     return instance;
                 };
@@ -394,19 +395,23 @@ namespace OneShot
             return null;
         }
 
-        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter)
+        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter, Type label = null)
         {
-            var label = parameter.GetCustomAttribute<InjectAttribute>()?.Label;
             var parameterType = parameter.ParameterType;
             var instance = container.ResolveImpl(parameterType, label);
             if (instance != null) return instance;
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, object[] arguments = null)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, object[] arguments = null, Type[] labels = null)
         {
             if (arguments == null) arguments = new object[parameters.Length];
-            for (var i = 0; i < parameters.Length; i++) arguments[i] = ResolveParameterInfo(container, parameters[i]);
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var parameter = parameters[i];
+                var label = labels == null ? parameter.GetCustomAttribute<InjectAttribute>()?.Label : labels[i];
+                arguments[i] = ResolveParameterInfo(container, parameter, label);
+            }
             return arguments;
         }
     }
