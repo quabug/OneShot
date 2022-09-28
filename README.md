@@ -38,12 +38,14 @@ container.Register<Bar>().AsSelf(); // register transient of `Bar`
 container.Register<Func<int>>((resolveContainer, contractType) => container.Resolve<Foo>().GetIntValue).AsSelf(); // register `Func<int>`
 conatiner.Register<Foo>().As<IFoo>(); // register interface of `IFoo`
 container.Register<Foo>().With(123, new Bar()).AsSelf(); // register with certain instances
+container.Register(typeof(Generic<>), (_, type) => Activator.CreateInstance(type)).As(typeof(Generic<>)); // register generic type
 ```
 
 ### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L182)
 ``` c#
 container.Resolve<int>();
 container.Resolve<IFoo>();
+container.Resolve<Generic<int>>();
 ```
 
 ### [InjectAttribute](Packages/com.quabug.one-shot-injection/OneShot.cs#L39)
