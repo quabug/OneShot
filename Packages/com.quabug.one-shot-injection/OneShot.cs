@@ -45,9 +45,6 @@ namespace OneShot
         private ConcurrentBag<IDisposable>? _disposableInstances = new ConcurrentBag<IDisposable>();
         private ConcurrentBag<Container>? _children = new ConcurrentBag<Container>();
         
-        public Container() {}
-        internal Container(Container? parent) => Parent = parent;
-
         // TODO: remove container from parent?
         public void Dispose()
         {
@@ -64,7 +61,8 @@ namespace OneShot
         
         public Container CreateChildContainer()
         {
-            var child =  new Container(this);
+            var child =  new Container();
+            child.Parent = this;
             _children!.Add(child);
             return child;
         }
@@ -80,12 +78,9 @@ namespace OneShot
 
         public object Resolve(Type type, Type? label = null)
         {
-            using (CircularCheck.Create())
-            {
-                var instance = ResolveImpl(type, label);
-                if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
-                return instance;
-            }
+            var instance = ResolveImpl(type, label);
+            if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
+            return instance;
         }
 
         public T Resolve<T>(Type? label = null)
@@ -109,7 +104,7 @@ namespace OneShot
             if (type.IsArray)
             {
                 var elementType = type.GetElementType()!;
-                var arrayArgument = ResolveGroupWithoutException(elementType);
+                var arrayArgument = ResolveGroup(elementType);
                 if (arrayArgument.Any())
                 {
                     var source = arrayArgument.ToArray();
@@ -130,20 +125,10 @@ namespace OneShot
             return null;
         }
 
-        private IEnumerable<object> ResolveGroupWithoutException(Type type)
-        {
-            using (CircularCheck.Create())
-            {
-                var creators = FindCreatorsInHierarchy(this, type).SelectMany(c => c);
-                return creators.Select(creator => creator(this, type));
-            }
-        }
-
         public IEnumerable<object> ResolveGroup(Type type)
         {
-            var objects = ResolveGroupWithoutException(type);
-            if (objects.Any()) return objects;
-            throw new ArgumentException($"{type.Name} have not been registered into containers.");
+            var creators = FindCreatorsInHierarchy(this, type).SelectMany(c => c);
+            return creators.Select(creator => creator(this, type));
         }
 
         #endregion
@@ -166,7 +151,7 @@ namespace OneShot
 
             object CreateInstance(Container resolveContainer, Type _)
             {
-                CircularCheck.Check(type);
+                using var check = new CircularCheck(type);
                 var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments.Value);
                 var instance = newFunc(args);
                 if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
@@ -200,21 +185,15 @@ namespace OneShot
         // Unity/Mono: local function with default parameter is not supported by Mono?
         public object CallFunc<T>(T func) where T : Delegate
         {
-            using (CircularCheck.Create())
-            {
-                var method = func.Method;
-                if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
-                return method.Invoke(func.Target, this);
-            }
+            var method = func.Method;
+            if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
+            return method.Invoke(func.Target, this);
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
         public void CallAction<T>(T action) where T : Delegate
         {
-            using (CircularCheck.Create())
-            {
-                action.Method.Invoke(action.Target, this);
-            }
+            action.Method.Invoke(action.Target, this);
         }
 
         #endregion
@@ -223,11 +202,7 @@ namespace OneShot
 
         public object Instantiate(Type type)
         {
-            using (CircularCheck.Create())
-            {
-                var ci = FindConstructorInfo(type);
-                return ci.Invoke(this);
-            }
+            return FindConstructorInfo(type).Invoke(this);
         }
 
         [NotNull] public T Instantiate<T>()
@@ -298,6 +273,7 @@ namespace OneShot
         public InjectAttribute(Type? label = null) => Label = label;
     }
     
+    // ReSharper disable once UnusedTypeParameter
     public interface ILabel<T> {}
 
     public class ResolverBuilder
@@ -411,7 +387,6 @@ namespace OneShot
 
         private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type? label)> labeledInstances)
         {
-            if (!labeledInstances.Any()) return this;
             var container = _Container.CreateChildContainer();
             foreach (var (instance, label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
             return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
@@ -420,11 +395,11 @@ namespace OneShot
 
     public static class InjectExtension
     {
-        private static readonly Dictionary<Type, TypeInjector> _injectors = new Dictionary<Type, TypeInjector>();
+        private static readonly Dictionary<Type, TypeInjector> _INJECTORS = new Dictionary<Type, TypeInjector>();
 
         public static void InjectAll(this Container container, object instance, Type instanceType)
         {
-            _injectors.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
+            _INJECTORS.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
         }
 
         public static void InjectAll<T>(this Container container, [NotNull] T instance)
@@ -487,10 +462,7 @@ namespace OneShot
 
         public void InjectMethods(Container container, object instance)
         {
-            using (CircularCheck.Create())
-            {
-                foreach (var method in _methods) method.Invoke(instance, container);
-            }
+            foreach (var method in _methods) method.Invoke(instance, container);
         }
 
         public void InjectAll(Container container, object instance)
@@ -542,23 +514,20 @@ namespace OneShot
 
     readonly struct CircularCheck : IDisposable
     {
-        private static readonly ThreadLocal<HashSet<Type>> _circularCheckSet = new ThreadLocal<HashSet<Type>>(() => new HashSet<Type>());
+        private static ThreadLocal<HashSet<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<HashSet<Type>>(() => new HashSet<Type>());
 
-        public static CircularCheck Create()
+        private readonly Type _type;
+        
+        public CircularCheck(Type type)
         {
-            _circularCheckSet.Value.Clear();
-            return new CircularCheck();
-        }
-
-        public static void Check(Type type)
-        {
-            if (_circularCheckSet.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-            _circularCheckSet.Value.Add(type);
+            if (_CIRCULAR_CHECK_SET.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
+            _CIRCULAR_CHECK_SET.Value.Add(type);
+            _type = type;
         }
 
         public void Dispose()
         {
-            _circularCheckSet.Value.Clear();
+            _CIRCULAR_CHECK_SET.Value.Remove(_type);
         }
     }
 
@@ -579,12 +548,12 @@ namespace OneShot
 
     static class ConstructorInfoCache
     {
-        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])> _compiled =
+        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])> _COMPILED =
             new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])>();
 
         public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type?[] labels) Compile(this ConstructorInfo ci)
         {
-            if (_compiled.TryGetValue(ci, out var t)) return t;
+            if (_COMPILED.TryGetValue(ci, out var t)) return t;
             var parameters = ci.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
 #if ENABLE_IL2CPP
@@ -599,7 +568,7 @@ namespace OneShot
             var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
             var func = (Func<object[], object>) lambda.Compile();
 #endif
-            _compiled.TryAdd(ci, (func, parameters, labels));
+            _COMPILED.TryAdd(ci, (func, parameters, labels));
             return (func, parameters, labels);
         }
 
@@ -613,15 +582,15 @@ namespace OneShot
     
     static class MethodInfoCache
     {
-        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> _compiled =
+        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> _COMPILED =
             new ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])>();
 
         public static (Func<object, object[], object> call, ParameterInfo[] parameters, Type?[] labels) Compile(this MethodInfo mi)
         {
-            if (_compiled.TryGetValue(mi, out var t)) return t;
+            if (_COMPILED.TryGetValue(mi, out var t)) return t;
             var parameters = mi.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
-            _compiled.TryAdd(mi, (mi.Invoke, parameters, labels));
+            _COMPILED.TryAdd(mi, (mi.Invoke, parameters, labels));
             return (mi.Invoke, parameters, labels);
         }
 
@@ -635,28 +604,28 @@ namespace OneShot
     
     static class PropertyInfoCache
     {
-        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> _compiled =
+        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> _COMPILED =
             new ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)>();
 
         public static (Action<object, object> setValue, Type? label) Compile(this PropertyInfo pi)
         {
-            if (_compiled.TryGetValue(pi, out var t)) return t;
+            if (_COMPILED.TryGetValue(pi, out var t)) return t;
             var label = pi.GetCustomAttribute<InjectAttribute>()?.Label;
-            _compiled.TryAdd(pi, (pi.SetValue, label));
+            _COMPILED.TryAdd(pi, (pi.SetValue, label));
             return (pi.SetValue, label);
         }
     }
     
     static class FieldInfoCache
     {
-        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> _compiled =
+        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> _COMPILED =
             new ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)>();
 
         public static (Action<object, object> setValue, Type? label) Compile(this FieldInfo fi)
         {
-            if (_compiled.TryGetValue(fi, out var t)) return t;
+            if (_COMPILED.TryGetValue(fi, out var t)) return t;
             var label = fi.GetCustomAttribute<InjectAttribute>()?.Label;
-            _compiled.TryAdd(fi, (fi.SetValue, label));
+            _COMPILED.TryAdd(fi, (fi.SetValue, label));
             return (fi.SetValue, label);
         }
     }
