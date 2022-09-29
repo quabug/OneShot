@@ -12,6 +12,7 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/quabug/OneShot</RepositoryUrl>
         <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>

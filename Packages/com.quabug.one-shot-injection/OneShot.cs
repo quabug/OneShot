@@ -40,29 +40,30 @@ namespace OneShot
         public void Dispose() => this.DisposeContainer();
     }
 
+    [UsedImplicitly]
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute
     {
-        public Type Label { get; }
-        public InjectAttribute(Type label = null) => Label = label;
+        public Type? Label { get; }
+        public InjectAttribute(Type? label = null) => Label = label;
     }
     
     public interface ILabel<T> {}
 
     public class ResolverBuilder
     {
-        [NotNull] protected readonly Container _Container;
-        [NotNull] protected readonly Func<Container, Type, object> _Creator;
-        [NotNull] protected readonly Type _ConcreteType;
+        protected readonly Container _Container;
+        protected readonly Func<Container, Type, object> _Creator;
+        protected readonly Type _ConcreteType;
 
-        public ResolverBuilder([NotNull] Container container, [NotNull] Type concreteType, [NotNull] Func<Container, Type, object> creator)
+        public ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator)
         {
             _Container = container;
             _Creator = creator;
             _ConcreteType = concreteType;
         }
 
-        [NotNull] public ResolverBuilder As([NotNull] Type contractType, Type label = null)
+        public ResolverBuilder As(Type contractType, Type? label = null)
         {
             if (!contractType.IsAssignableFrom(_ConcreteType)) throw new ArgumentException($"concreteType({_ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
             if (label != null) contractType = label.CreateLabelType(contractType);
@@ -71,23 +72,23 @@ namespace OneShot
             return this;
         }
 
-        [NotNull] public ResolverBuilder As<T>(Type label = null)
+        public ResolverBuilder As<T>(Type? label = null)
         {
             return As(typeof(T), label);
         }
 
-        [NotNull] public ResolverBuilder AsSelf(Type label = null)
+        public ResolverBuilder AsSelf(Type? label = null)
         {
             return As(_ConcreteType, label);
         }
 
-        [NotNull] public ResolverBuilder AsInterfaces(Type label = null)
+        public ResolverBuilder AsInterfaces(Type? label = null)
         {
             foreach (var @interface in _ConcreteType.GetInterfaces()) As(@interface, label);
             return this;
         }
 
-        [NotNull] public ResolverBuilder AsBases(Type label = null)
+        public ResolverBuilder AsBases(Type? label = null)
         {
             var baseType = _ConcreteType.BaseType;
             while (baseType != null && baseType != typeof(Object) && baseType != typeof(ValueType))
@@ -106,22 +107,22 @@ namespace OneShot
 
     public class LifetimeBuilder : ResolverBuilder
     {
-        public LifetimeBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, concreteType, creator) {}
+        public LifetimeBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, concreteType, creator) {}
 
-        [NotNull, MustUseReturnValue]
+        [MustUseReturnValue]
         public ResolverBuilder Transient()
         {
             return this;
         }
 
-        [NotNull, MustUseReturnValue]
+        [MustUseReturnValue]
         public ResolverBuilder Singleton()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
             return new ResolverBuilder(_Container, _ConcreteType, (container, contractType) => lazyValue.Value);
         }
 
-        [NotNull, MustUseReturnValue]
+        [MustUseReturnValue]
         public ResolverBuilder Scope()
         {
             var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
@@ -139,23 +140,23 @@ namespace OneShot
 
     public class WithBuilder : LifetimeBuilder
     {
-        public WithBuilder([NotNull] Container container, [NotNull] Func<Container, Type, object> creator, [NotNull] Type concreteType) : base(container, creator, concreteType) {}
+        public WithBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, creator, concreteType) {}
         
-        [NotNull, MustUseReturnValue]
+        [MustUseReturnValue]
         public LifetimeBuilder With(params object[] instances)
         {
-            return WithImpl(instances.Select(instance => (instance, (Type)null)));
+            return WithImpl(instances.Select(instance => (instance, (Type?)null)));
         }
         
-        [NotNull, MustUseReturnValue]
-        public LifetimeBuilder With(params (object instance, Type label)[] labeledInstances)
+        [MustUseReturnValue]
+        public LifetimeBuilder With(params (object instance, Type? label)[] labeledInstances)
         {
             return WithImpl(labeledInstances);
         }
 
-        private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type label)> labeledInstances)
+        private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type? label)> labeledInstances)
         {
-            if (labeledInstances == null || !labeledInstances.Any()) return this;
+            if (!labeledInstances.Any()) return this;
             var container = _Container.CreateChildContainer();
             foreach (var (instance, label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
             return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
@@ -164,32 +165,30 @@ namespace OneShot
 
     public static class TypeCreatorRegister
     {
-        private static readonly Dictionary<Container, Container> _containerParentMap =
-            new Dictionary<Container, Container>()
-        ;
+        private static readonly Dictionary<Container, Container> _containerParentMap = new Dictionary<Container, Container>();
 
         private static readonly Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>> _containerResolvers =
             new Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>>()
         ;
 
-        [NotNull] public static Container CreateChildContainer([NotNull] this Container container)
+        public static Container CreateChildContainer(this Container container)
         {
             var child = new Container();
             _containerParentMap[child] = container;
             return child;
         }
 
-        [NotNull] public static Container BeginScope([NotNull] this Container container)
+        public static Container BeginScope(this Container container)
         {
             return CreateChildContainer(container);
         }
 
-        [NotNull] internal static List<Func<Container, Type, object>> GetOrCreateResolver(this Container container, Type type)
+        internal static List<Func<Container, Type, object>> GetOrCreateResolver(this Container container, Type type)
         {
             return _containerResolvers.GetOrCreate(container).GetOrCreate(type);
         }
 
-        [NotNull] public static object Resolve([NotNull] this Container container, [NotNull] Type type, Type label = null)
+        public static object Resolve(this Container container, Type type, Type? label = null)
         {
             using (CircularCheck.Create())
             {
@@ -199,12 +198,12 @@ namespace OneShot
             }
         }
 
-        [NotNull] public static T Resolve<T>([NotNull] this Container container, Type label = null)
+        public static T Resolve<T>(this Container container, Type? label = null)
         {
             return (T) container.Resolve(typeof(T), label);
         }
 
-        [CanBeNull] private static object ResolveImpl(this Container container, Type type, Type label)
+        private static object? ResolveImpl(this Container container, Type type, Type? label)
         {
             {
                 var creatorKey = label == null ? type : label.CreateLabelType(type);
@@ -214,7 +213,7 @@ namespace OneShot
 
             if (type.IsArray)
             {
-                var elementType = type.GetElementType();
+                var elementType = type.GetElementType()!;
                 var arrayArgument = container.ResolveGroupWithoutException(elementType);
                 if (arrayArgument.Any())
                 {
@@ -236,7 +235,7 @@ namespace OneShot
             return null;
         }
 
-        [NotNull] private static IEnumerable<object> ResolveGroupWithoutException([NotNull] this Container container, Type type)
+        private static IEnumerable<object> ResolveGroupWithoutException(this Container container, Type type)
         {
             using (CircularCheck.Create())
             {
@@ -245,38 +244,38 @@ namespace OneShot
             }
         }
 
-        [NotNull] public static IEnumerable<object> ResolveGroup([NotNull] this Container container, Type type)
+        public static IEnumerable<object> ResolveGroup(this Container container, Type type)
         {
             var objects = container.ResolveGroupWithoutException(type);
             if (objects.Any()) return objects;
             throw new ArgumentException($"{type.Name} have not been registered into containers.");
         }
 
-        [NotNull] public static IEnumerable<T> ResolveGroup<T>([NotNull] this Container container)
+        public static IEnumerable<T> ResolveGroup<T>(this Container container)
         {
             return container.ResolveGroup(typeof(T)).OfType<T>();
         }
 
-        [NotNull, MustUseReturnValue]
-        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type, [NotNull] Func<Container, Type, object> creator)
+        [MustUseReturnValue]
+        public static WithBuilder Register(this Container container, Type type, Func<Container, Type, object> creator)
         {
             return new WithBuilder(container, creator, type);
         }
 
-        [NotNull, MustUseReturnValue]
-        public static WithBuilder Register<T>([NotNull] this Container container, [NotNull] Func<Container, Type, T> creator) where T : class
+        [MustUseReturnValue]
+        public static WithBuilder Register<T>(this Container container, Func<Container, Type, T> creator) where T : class
         {
             return container.Register(typeof(T), creator);
         }
 
-        [NotNull, MustUseReturnValue]
-        public static WithBuilder Register<T>([NotNull] this Container container)
+        [MustUseReturnValue]
+        public static WithBuilder Register<T>(this Container container)
         {
             return container.Register(typeof(T));
         }
 
-        [NotNull, MustUseReturnValue]
-        public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
+        [MustUseReturnValue]
+        public static WithBuilder Register(this Container container, Type type)
         {
             var ci = FindConstructorInfo(type);
             var (newFunc, parameters, labels) = ci.Compile();
@@ -293,14 +292,15 @@ namespace OneShot
             }
         }
 
-        [NotNull, MustUseReturnValue]
-        public static ResolverBuilder RegisterInstance<T>([NotNull] this Container container, [NotNull] T instance)
+        [MustUseReturnValue]
+        public static ResolverBuilder RegisterInstance<T>(this Container container, [NotNull] T instance)
         {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
             return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
-        public static object CallFunc<T>([NotNull] this Container container, T func) where T : Delegate
+        public static object CallFunc<T>(this Container container, T func) where T : Delegate
         {
             using (CircularCheck.Create())
             {
@@ -311,7 +311,7 @@ namespace OneShot
         }
 
         // Unity/Mono: local function with default parameter is not supported by Mono?
-        public static void CallAction<T>([NotNull] this Container container, T action) where T : Delegate
+        public static void CallAction<T>(this Container container, T action) where T : Delegate
         {
             using (CircularCheck.Create())
             {
@@ -319,8 +319,7 @@ namespace OneShot
             }
         }
 
-        [NotNull]
-        public static object Instantiate([NotNull] this Container container, Type type)
+        public static object Instantiate(this Container container, Type type)
         {
             using (CircularCheck.Create())
             {
@@ -329,13 +328,12 @@ namespace OneShot
             }
         }
 
-        [NotNull]
-        public static T Instantiate<T>([NotNull] this Container container)
+        [NotNull] public static T Instantiate<T>(this Container container)
         {
             return (T) container.Instantiate(typeof(T));
         }
 
-        public static void DisposeContainer([NotNull] this Container container)
+        public static void DisposeContainer(this Container container)
         {
             var descendantsAndSelf = new HashSet<Container> { container };
             var irrelevantContainers = new HashSet<Container>();
@@ -368,7 +366,7 @@ namespace OneShot
         private static ConstructorInfo FindConstructorInfo(Type type)
         {
             var constructors = type.GetConstructors();
-            ConstructorInfo ci = null;
+            ConstructorInfo? ci = null;
             if (constructors.Length == 1) ci = constructors[0];
             else if (constructors.Length > 1) ci = constructors.Single(c => c.GetCustomAttribute<InjectAttribute>() != null);
             if (ci == null) throw new NotSupportedException($"cannot found constructor of type {type}");
@@ -385,7 +383,7 @@ namespace OneShot
             }
         }
 
-        private static Func<Container, Type, object> FindFirstCreatorsInHierarchy(this Container container, Type type)
+        private static Func<Container, Type, object>? FindFirstCreatorsInHierarchy(this Container container, Type type)
         {
             for (;;)
             {
@@ -398,24 +396,24 @@ namespace OneShot
             return null;
         }
 
-        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter, Type label = null)
+        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter, Type? label = null)
         {
             var parameterType = parameter.ParameterType;
             var instance = container.ResolveImpl(parameterType, label);
             if (instance != null) return instance;
-            return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
+            return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type[] labels, object[] arguments = null)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type?[] labels, object?[]? arguments = null)
         {
-            if (arguments == null) arguments = new object[parameters.Length];
+            arguments ??= new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
                 var label = labels[i];
                 arguments[i] = ResolveParameterInfo(container, parameter, label);
             }
-            return arguments;
+            return arguments!;
         }
     }
 
@@ -423,13 +421,14 @@ namespace OneShot
     {
         private static readonly Dictionary<Type, TypeInjector> _injectors = new Dictionary<Type, TypeInjector>();
 
-        public static void InjectAll([NotNull] this Container container, [NotNull] object instance, [NotNull] Type instanceType)
+        public static void InjectAll(this Container container, object instance, Type instanceType)
         {
             _injectors.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
         }
 
-        public static void InjectAll<T>([NotNull] this Container container, [NotNull] T instance)
+        public static void InjectAll<T>(this Container container, [NotNull] T instance)
         {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
             InjectAll(container, instance, instance.GetType());
         }
     }
@@ -509,7 +508,7 @@ namespace OneShot
     internal static class DictionaryExtension
     {
         [NotNull] public static TValue GetOrCreate<TKey, TValue>(
-            [NotNull] this Dictionary<TKey, TValue> dictionary,
+            this Dictionary<TKey, TValue> dictionary,
             [NotNull] TKey key
         ) where TValue : new()
         {
@@ -517,9 +516,9 @@ namespace OneShot
         }
 
         [NotNull] public static TValue GetOrCreate<TKey, TValue>(
-            [NotNull] this Dictionary<TKey, TValue> dictionary,
+            this Dictionary<TKey, TValue> dictionary,
             [NotNull] TKey key,
-            [NotNull] Func<TValue> newValue
+            Func<TValue> newValue
         )
         {
             if (!dictionary.TryGetValue(key, out var value))
@@ -564,8 +563,7 @@ namespace OneShot
 
     static class LabelExtension
     {
-        [NotNull]
-        public static Type CreateLabelType([NotNull] this Type label, [NotNull] Type contractType)
+        public static Type CreateLabelType(this Type label, Type contractType)
         {
             if (label.BaseType != null) throw new ArgumentException($"label {label.FullName} cannot have base type", nameof(label));
             var interfaces = label.GetInterfaces();
@@ -580,10 +578,10 @@ namespace OneShot
 
     static class ConstructorInfoCache
     {
-        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
-            new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])>();
+        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])> _compiled =
+            new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])>();
 
-        public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type[] labels) Compile(this ConstructorInfo ci)
+        public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type?[] labels) Compile(this ConstructorInfo ci)
         {
             if (_compiled.TryGetValue(ci, out var t)) return t;
             var parameters = ci.GetParameters();
@@ -614,10 +612,10 @@ namespace OneShot
     
     static class MethodInfoCache
     {
-        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type[])> _compiled =
-            new ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type[])>();
+        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> _compiled =
+            new ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])>();
 
-        public static (Func<object, object[], object> call, ParameterInfo[] parameters, Type[] labels) Compile(this MethodInfo mi)
+        public static (Func<object, object[], object> call, ParameterInfo[] parameters, Type?[] labels) Compile(this MethodInfo mi)
         {
             if (_compiled.TryGetValue(mi, out var t)) return t;
             var parameters = mi.GetParameters();
@@ -636,10 +634,10 @@ namespace OneShot
     
     static class PropertyInfoCache
     {
-        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type)> _compiled =
-            new ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type)>();
+        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> _compiled =
+            new ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)>();
 
-        public static (Action<object, object> setValue, Type label) Compile(this PropertyInfo pi)
+        public static (Action<object, object> setValue, Type? label) Compile(this PropertyInfo pi)
         {
             if (_compiled.TryGetValue(pi, out var t)) return t;
             var label = pi.GetCustomAttribute<InjectAttribute>()?.Label;
@@ -650,10 +648,10 @@ namespace OneShot
     
     static class FieldInfoCache
     {
-        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type)> _compiled =
-            new ConcurrentDictionary<FieldInfo, (Action<object, object>, Type)>();
+        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> _compiled =
+            new ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)>();
 
-        public static (Action<object, object> setValue, Type label) Compile(this FieldInfo fi)
+        public static (Action<object, object> setValue, Type? label) Compile(this FieldInfo fi)
         {
             if (_compiled.TryGetValue(fi, out var t)) return t;
             var label = fi.GetCustomAttribute<InjectAttribute>()?.Label;
