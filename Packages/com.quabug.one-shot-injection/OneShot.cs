@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -277,41 +278,26 @@ namespace OneShot
         public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
-            var parameters = ci.GetParameters();
-            var arguments = new object[parameters.Length];
-            var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
-#if !ENABLE_IL2CPP
-            var expressionNew = Compile();
-#endif
+            var (newFunc, parameters, labels) = ci.Compile();
             return container.Register(type, CreateInstance);
 
             object CreateInstance(Container resolveContainer, Type _)
             {
                 CircularCheck.Check(type);
-                var args = resolveContainer.ResolveParameterInfos(parameters, arguments, labels);
-#if ENABLE_IL2CPP
-                var instance = ci.Invoke(args);
+                
+#if NETSTANDARD2_1
+                var arguments = System.Buffers.ArrayPool<object>.Shared.Rent(parameters.Length);
 #else
-                var instance = expressionNew(args);
+                var arguments = new object[parameters.Length];
+#endif
+                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments);
+                var instance = newFunc(args);
+#if NETSTANDARD2_1
+                System.Buffers.ArrayPool<object>.Shared.Return(arguments);
 #endif
                 if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                 return instance;
             }
-
-#if !ENABLE_IL2CPP
-            // https://github.com/gustavopsantos/Reflex/blob/6ef55a027800681e7a78a36e3e4c58226d8b8cf8/Assets/Reflex/Scripts/Reflectors/MonoReflector.cs
-            Func<object[], object> Compile()
-            {
-                var @params = Expression.Parameter(typeof(object[]));
-                var args = parameters.Select((parameter, index) => Expression.Convert(
-                    Expression.ArrayIndex(@params, Expression.Constant(index)),
-                    parameter.ParameterType)
-                ).Cast<Expression>().ToArray();
-                var @new = Expression.New(ci, args);
-                var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
-                return (Func<object[], object>) lambda.Compile();
-            }
-#endif
         }
 
         [NotNull, MustUseReturnValue]
@@ -327,7 +313,7 @@ namespace OneShot
             {
                 var method = func.Method;
                 if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
-                return method.Invoke(func.Target, container.ResolveParameterInfos(method.GetParameters()));
+                return method.Invoke(func.Target, container);
             }
         }
 
@@ -336,8 +322,7 @@ namespace OneShot
         {
             using (CircularCheck.Create())
             {
-                var method = action.Method;
-                method.Invoke(action.Target, container.ResolveParameterInfos(method.GetParameters()));
+                action.Method.Invoke(action.Target, container);
             }
         }
 
@@ -347,8 +332,9 @@ namespace OneShot
             using (CircularCheck.Create())
             {
                 var ci = FindConstructorInfo(type);
-                var parameters = ci.GetParameters();
-                return ci.Invoke(container.ResolveParameterInfos(parameters));
+                var (newFunc, parameters, labels) = ci.Compile();
+                var args = container.ResolveParameterInfos(parameters, labels);
+                return newFunc(args);
             }
         }
 
@@ -426,7 +412,7 @@ namespace OneShot
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, object[] arguments = null, Type[] labels = null)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type[] labels = null, object[] arguments = null)
         {
             if (arguments == null) arguments = new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
@@ -488,20 +474,28 @@ namespace OneShot
         public void InjectFields(Container container, object instance)
         {
             CheckInstanceType(instance);
-            foreach (var field in _fields) field.SetValue(instance, container.Resolve(field.FieldType));
+            foreach (var field in _fields)
+            {
+                var (setter, label) = field.Compile();
+                setter(instance, container.Resolve(field.FieldType, label));
+            }
         }
 
         public void InjectProperties(Container container, object instance)
         {
             CheckInstanceType(instance);
-            foreach (var property in _properties) property.SetValue(instance, container.Resolve(property.PropertyType));
+            foreach (var property in _properties)
+            {
+                var (setter, label) = property.Compile();
+                setter(instance, container.Resolve(property.PropertyType, label));
+            }
         }
 
         public void InjectMethods(Container container, object instance)
         {
             using (CircularCheck.Create())
             {
-                foreach (var method in _methods) method.Invoke(instance, container.ResolveParameterInfos(method.GetParameters()));
+                foreach (var method in _methods) method.Invoke(instance, container);
             }
         }
 
@@ -588,6 +582,90 @@ namespace OneShot
             if (labelValueType.IsGenericParameter) label = label.MakeGenericType(contractType);
             else if (labelValueType != contractType) throw new ArgumentException($"Type mismatch between typed label {label.FullName} and {contractType.FullName}");
             return label;
+        }
+    }
+
+    static class ConstructorInfoCache
+    {
+        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
+            new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])>();
+
+        public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type[] labels) Compile(this ConstructorInfo ci)
+        {
+            if (_compiled.TryGetValue(ci, out var t)) return t;
+            var parameters = ci.GetParameters();
+            var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
+#if ENABLE_IL2CPP
+            _compiled.TryAdd(ci, (ci.Invoke, parameters, labels));
+            return (ci.Invoke, parameters, labels);
+#endif
+            var @params = Expression.Parameter(typeof(object[]));
+            var args = parameters.Select((parameter, index) => Expression.Convert(
+                Expression.ArrayIndex(@params, Expression.Constant(index)),
+                parameter.ParameterType)
+            ).Cast<Expression>().ToArray();
+            var @new = Expression.New(ci, args);
+            var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
+            var func = (Func<object[], object>) lambda.Compile();
+            _compiled.TryAdd(ci, (func, parameters, labels));
+            return (func, parameters, labels);
+        }
+
+        public static object Invoke(this ConstructorInfo ci, Container container)
+        {
+            var (newFunc, parameters, labels) = ci.Compile();
+            var args = container.ResolveParameterInfos(parameters, labels);
+            return newFunc(args);
+        }
+    }
+    
+    static class MethodInfoCache
+    {
+        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type[])> _compiled =
+            new ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type[])>();
+
+        public static (Func<object, object[], object> call, ParameterInfo[] parameters, Type[] labels) Compile(this MethodInfo mi)
+        {
+            if (_compiled.TryGetValue(mi, out var t)) return t;
+            var parameters = mi.GetParameters();
+            var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
+            _compiled.TryAdd(mi, (mi.Invoke, parameters, labels));
+            return (mi.Invoke, parameters, labels);
+        }
+
+        public static object Invoke(this MethodInfo mi, object target, Container container)
+        {
+            var (call, parameters, labels) = mi.Compile();
+            var args = container.ResolveParameterInfos(parameters, labels);
+            return call(target, args);
+        }
+    }
+    
+    static class PropertyInfoCache
+    {
+        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type)> _compiled =
+            new ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type)>();
+
+        public static (Action<object, object> setValue, Type label) Compile(this PropertyInfo pi)
+        {
+            if (_compiled.TryGetValue(pi, out var t)) return t;
+            var label = pi.GetCustomAttribute<InjectAttribute>()?.Label;
+            _compiled.TryAdd(pi, (pi.SetValue, label));
+            return (pi.SetValue, label);
+        }
+    }
+    
+    static class FieldInfoCache
+    {
+        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type)> _compiled =
+            new ConcurrentDictionary<FieldInfo, (Action<object, object>, Type)>();
+
+        public static (Action<object, object> setValue, Type label) Compile(this FieldInfo fi)
+        {
+            if (_compiled.TryGetValue(fi, out var t)) return t;
+            var label = fi.GetCustomAttribute<InjectAttribute>()?.Label;
+            _compiled.TryAdd(fi, (fi.SetValue, label));
+            return (fi.SetValue, label);
         }
     }
 }

@@ -80,6 +80,9 @@ class Bar
         [Inject(AnyLabel<>)] Foo anyLabeledFoo, // labeled type
         [Inject(typeof(AnyLabel<>)] int anyLabeledInt  // labeled type
     ) {}
+    
+    [Inject(typeof(AnyLabel<>))] Foo LabeledProperty { get; private set; }
+    [Inject(typeof(FooLabel))] Foo LabeledField;
 }
 
 container.Register<Foo>().AsSelf(typeof(TypedLabel)); // register typed label foo
