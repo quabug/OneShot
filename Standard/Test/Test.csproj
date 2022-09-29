@@ -1,13 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
-
         <IsPackable>false</IsPackable>
-
         <OutputType>Library</OutputType>
-
         <LangVersion>7.3</LangVersion>
-
         <TargetFrameworks>net472;net5.0;net6.0</TargetFrameworks>
     </PropertyGroup>
 
@@ -23,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\Assets\Tests\*.cs">
+        <Compile Include="..\..\Assets\Tests\*.cs">
             <Link>%(FileName)%(Extension)</Link>
         </Compile>
     </ItemGroup>

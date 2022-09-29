@@ -26,6 +26,9 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using JetBrains.Annotations;
+#if !ENABLE_IL2CPP
+using System.Linq.Expressions;
+#endif
 
 namespace OneShot
 {
@@ -274,21 +277,41 @@ namespace OneShot
         public static WithBuilder Register([NotNull] this Container container, [NotNull] Type type)
         {
             var ci = FindConstructorInfo(type);
-            return container.Register(type, CreateInstance());
+            var parameters = ci.GetParameters();
+            var arguments = new object[parameters.Length];
+            var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
+#if !ENABLE_IL2CPP
+            var expressionNew = Compile();
+#endif
+            return container.Register(type, CreateInstance);
 
-            Func<Container, Type, object> CreateInstance()
+            object CreateInstance(Container resolveContainer, Type _)
             {
-                var parameters = ci.GetParameters();
-                var arguments = new object[parameters.Length];
-                var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
-                return (resolveContainer, _) =>
-                {
-                    CircularCheck.Check(type);
-                    var instance = ci.Invoke(resolveContainer.ResolveParameterInfos(parameters, arguments, labels));
-                    if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
-                    return instance;
-                };
+                CircularCheck.Check(type);
+                var args = resolveContainer.ResolveParameterInfos(parameters, arguments, labels);
+#if ENABLE_IL2CPP
+                var instance = ci.Invoke(args);
+#else
+                var instance = expressionNew(args);
+#endif
+                if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
+                return instance;
             }
+
+#if !ENABLE_IL2CPP
+            // https://github.com/gustavopsantos/Reflex/blob/6ef55a027800681e7a78a36e3e4c58226d8b8cf8/Assets/Reflex/Scripts/Reflectors/MonoReflector.cs
+            Func<object[], object> Compile()
+            {
+                var @params = Expression.Parameter(typeof(object[]));
+                var args = parameters.Select((parameter, index) => Expression.Convert(
+                    Expression.ArrayIndex(@params, Expression.Constant(index)),
+                    parameter.ParameterType)
+                ).Cast<Expression>().ToArray();
+                var @new = Expression.New(ci, args);
+                var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
+                return (Func<object[], object>) lambda.Compile();
+            }
+#endif
         }
 
         [NotNull, MustUseReturnValue]
