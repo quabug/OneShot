@@ -36,8 +36,258 @@ namespace OneShot
 {
     public sealed class Container : IDisposable
     {
-        internal ConcurrentBag<IDisposable> DisposableInstances { get; set; } = new ConcurrentBag<IDisposable>();
-        public void Dispose() => this.DisposeContainer();
+        internal Container? Parent { get; private set; }
+
+        internal ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>> Resolvers => _resolvers!;
+        
+        private ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>? _resolvers
+            = new ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>();
+        private ConcurrentBag<IDisposable>? _disposableInstances = new ConcurrentBag<IDisposable>();
+        private ConcurrentBag<Container>? _children = new ConcurrentBag<Container>();
+        
+        public Container() {}
+        internal Container(Container? parent) => Parent = parent;
+
+        // TODO: remove container from parent?
+        public void Dispose()
+        {
+            if (_children != null) foreach (var child in _children) child.Dispose();
+            _children = null;
+            if (_disposableInstances != null) foreach (var instance in _disposableInstances) instance.Dispose();
+            _disposableInstances = null;
+            Parent = null;
+            _resolvers?.Clear();
+            _resolvers = null!;
+        }
+
+        #region scope
+        
+        public Container CreateChildContainer()
+        {
+            var child =  new Container(this);
+            _children!.Add(child);
+            return child;
+        }
+
+        public Container BeginScope()
+        {
+            return CreateChildContainer();
+        }
+
+        #endregion
+
+        #region Resolve
+
+        public object Resolve(Type type, Type? label = null)
+        {
+            using (CircularCheck.Create())
+            {
+                var instance = ResolveImpl(type, label);
+                if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
+                return instance;
+            }
+        }
+
+        public T Resolve<T>(Type? label = null)
+        {
+            return (T) Resolve(typeof(T), label);
+        }
+
+        public IEnumerable<T> ResolveGroup<T>()
+        {
+            return ResolveGroup(typeof(T)).OfType<T>();
+        }
+
+        private object? ResolveImpl(Type type, Type? label)
+        {
+            {
+                var creatorKey = label == null ? type : label.CreateLabelType(type);
+                var creator = FindFirstCreatorsInHierarchy(this, creatorKey);
+                if (creator != null) return creator(this, type);
+            }
+
+            if (type.IsArray)
+            {
+                var elementType = type.GetElementType()!;
+                var arrayArgument = ResolveGroupWithoutException(elementType);
+                if (arrayArgument.Any())
+                {
+                    var source = arrayArgument.ToArray();
+                    var dest = Array.CreateInstance(elementType, source.Length);
+                    Array.Copy(source, dest, source.Length);
+                    return dest;
+                }
+            }
+
+            if (type.IsGenericType)
+            {
+                var generic = type.GetGenericTypeDefinition();
+                var creatorKey = label == null ? generic : label.CreateLabelType(generic);
+                var creator = FindFirstCreatorsInHierarchy(this, creatorKey);
+                if (creator != null) return creator(this, type);
+            }
+
+            return null;
+        }
+
+        private IEnumerable<object> ResolveGroupWithoutException(Type type)
+        {
+            using (CircularCheck.Create())
+            {
+                var creators = FindCreatorsInHierarchy(this, type).SelectMany(c => c);
+                return creators.Select(creator => creator(this, type));
+            }
+        }
+
+        public IEnumerable<object> ResolveGroup(Type type)
+        {
+            var objects = ResolveGroupWithoutException(type);
+            if (objects.Any()) return objects;
+            throw new ArgumentException($"{type.Name} have not been registered into containers.");
+        }
+
+        #endregion
+
+        #region Register
+
+        [MustUseReturnValue]
+        public WithBuilder Register(Type type, Func<Container, Type, object> creator)
+        {
+            return new WithBuilder(this, creator, type);
+        }
+
+        [MustUseReturnValue]
+        public WithBuilder Register(Type type)
+        {
+            var ci = FindConstructorInfo(type);
+            var (newFunc, parameters, labels) = ci.Compile();
+            var arguments = new ThreadLocal<object[]>(() => new object[parameters.Length]);
+            return Register(type, CreateInstance);
+
+            object CreateInstance(Container resolveContainer, Type _)
+            {
+                CircularCheck.Check(type);
+                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments.Value);
+                var instance = newFunc(args);
+                if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
+                return instance;
+            }
+        }
+        
+        [MustUseReturnValue]
+        public WithBuilder Register<T>(Func<Container, Type, T> creator) where T : class
+        {
+            return Register(typeof(T), creator);
+        }
+
+        [MustUseReturnValue]
+        public WithBuilder Register<T>()
+        {
+            return Register(typeof(T));
+        }
+
+        [MustUseReturnValue]
+        public ResolverBuilder RegisterInstance<T>([NotNull] T instance)
+        {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
+            return new ResolverBuilder(this, instance.GetType(), (c, t) => instance);
+        }
+
+        #endregion
+
+        #region Call
+
+        // Unity/Mono: local function with default parameter is not supported by Mono?
+        public object CallFunc<T>(T func) where T : Delegate
+        {
+            using (CircularCheck.Create())
+            {
+                var method = func.Method;
+                if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
+                return method.Invoke(func.Target, this);
+            }
+        }
+
+        // Unity/Mono: local function with default parameter is not supported by Mono?
+        public void CallAction<T>(T action) where T : Delegate
+        {
+            using (CircularCheck.Create())
+            {
+                action.Method.Invoke(action.Target, this);
+            }
+        }
+
+        #endregion
+
+        #region Instantiate
+
+        public object Instantiate(Type type)
+        {
+            using (CircularCheck.Create())
+            {
+                var ci = FindConstructorInfo(type);
+                return ci.Invoke(this);
+            }
+        }
+
+        [NotNull] public T Instantiate<T>()
+        {
+            return (T) Instantiate(typeof(T));
+        }
+
+        #endregion
+
+        private static ConstructorInfo FindConstructorInfo(Type type)
+        {
+            var constructors = type.GetConstructors();
+            ConstructorInfo? ci = null;
+            if (constructors.Length == 1) ci = constructors[0];
+            else if (constructors.Length > 1) ci = constructors.Single(c => c.GetCustomAttribute<InjectAttribute>() != null);
+            if (ci == null) throw new NotSupportedException($"cannot found constructor of type {type}");
+            return ci;
+        }
+
+        private static IEnumerable<ConcurrentStack<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
+        {
+            var current = container;
+            while (current != null)
+            {
+                if (current.Resolvers.TryGetValue(type, out var creators))
+                    yield return creators;
+                current = current.Parent;
+            }
+        }
+
+        private static Func<Container, Type, object>? FindFirstCreatorsInHierarchy(Container container, Type type)
+        {
+            var current = container;
+            while (current != null)
+            {
+                if (current.Resolvers.TryGetValue(type, out var creators) && creators.TryPeek(out var creator)) return creator;
+                current = current.Parent;
+            }
+            return null;
+        }
+
+        private object ResolveParameterInfo(ParameterInfo parameter, Type? label = null)
+        {
+            var parameterType = parameter.ParameterType;
+            var instance = ResolveImpl(parameterType, label);
+            if (instance != null) return instance;
+            return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
+        }
+
+        internal object[] ResolveParameterInfos(ParameterInfo[] parameters, Type?[] labels, object?[]? arguments = null)
+        {
+            arguments ??= new object[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var parameter = parameters[i];
+                var label = labels[i];
+                arguments[i] = ResolveParameterInfo(parameter, label);
+            }
+            return arguments!;
+        }
     }
 
     [UsedImplicitly]
@@ -68,7 +318,7 @@ namespace OneShot
             if (!contractType.IsAssignableFrom(_ConcreteType)) throw new ArgumentException($"concreteType({_ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
             if (label != null) contractType = label.CreateLabelType(contractType);
             var resolver = GetOrCreateResolver(contractType);
-            if (!resolver.Contains(_Creator)) resolver.Insert(0, _Creator);
+            if (!resolver.Contains(_Creator)) resolver.Push(_Creator);
             return this;
         }
 
@@ -99,9 +349,14 @@ namespace OneShot
             return this;
         }
 
-        private List<Func<Container, Type, object>> GetOrCreateResolver(Type type)
+        private ConcurrentStack<Func<Container, Type, object>> GetOrCreateResolver(Type type)
         {
-            return _Container.GetOrCreateResolver(type);
+            if (!_Container.Resolvers.TryGetValue(type, out var resolvers))
+            {
+                resolvers = new ConcurrentStack<Func<Container, Type, object>>();
+                _Container.Resolvers[type] = resolvers;
+            }
+            return resolvers;
         }
     }
 
@@ -163,260 +418,6 @@ namespace OneShot
         }
     }
 
-    public static class TypeCreatorRegister
-    {
-        private static readonly Dictionary<Container, Container> _containerParentMap = new Dictionary<Container, Container>();
-
-        private static readonly Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>> _containerResolvers =
-            new Dictionary<Container, Dictionary<Type, List<Func<Container, Type, object>>>>()
-        ;
-
-        public static Container CreateChildContainer(this Container container)
-        {
-            var child = new Container();
-            _containerParentMap[child] = container;
-            return child;
-        }
-
-        public static Container BeginScope(this Container container)
-        {
-            return CreateChildContainer(container);
-        }
-
-        internal static List<Func<Container, Type, object>> GetOrCreateResolver(this Container container, Type type)
-        {
-            return _containerResolvers.GetOrCreate(container).GetOrCreate(type);
-        }
-
-        public static object Resolve(this Container container, Type type, Type? label = null)
-        {
-            using (CircularCheck.Create())
-            {
-                var instance = ResolveImpl(container, type, label);
-                if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
-                return instance;
-            }
-        }
-
-        public static T Resolve<T>(this Container container, Type? label = null)
-        {
-            return (T) container.Resolve(typeof(T), label);
-        }
-
-        private static object? ResolveImpl(this Container container, Type type, Type? label)
-        {
-            {
-                var creatorKey = label == null ? type : label.CreateLabelType(type);
-                var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
-                if (creator != null) return creator(container, type);
-            }
-
-            if (type.IsArray)
-            {
-                var elementType = type.GetElementType()!;
-                var arrayArgument = container.ResolveGroupWithoutException(elementType);
-                if (arrayArgument.Any())
-                {
-                    var source = arrayArgument.ToArray();
-                    var dest = Array.CreateInstance(elementType, source.Length);
-                    Array.Copy(source, dest, source.Length);
-                    return dest;
-                }
-            }
-
-            if (type.IsGenericType)
-            {
-                var generic = type.GetGenericTypeDefinition();
-                var creatorKey = label == null ? generic : label.CreateLabelType(generic);
-                var creator = container.FindFirstCreatorsInHierarchy(creatorKey);
-                if (creator != null) return creator(container, type);
-            }
-
-            return null;
-        }
-
-        private static IEnumerable<object> ResolveGroupWithoutException(this Container container, Type type)
-        {
-            using (CircularCheck.Create())
-            {
-                var creators = FindCreatorsInHierarchy(container, type).SelectMany(c => c);
-                return creators.Select(creator => creator(container, type));
-            }
-        }
-
-        public static IEnumerable<object> ResolveGroup(this Container container, Type type)
-        {
-            var objects = container.ResolveGroupWithoutException(type);
-            if (objects.Any()) return objects;
-            throw new ArgumentException($"{type.Name} have not been registered into containers.");
-        }
-
-        public static IEnumerable<T> ResolveGroup<T>(this Container container)
-        {
-            return container.ResolveGroup(typeof(T)).OfType<T>();
-        }
-
-        [MustUseReturnValue]
-        public static WithBuilder Register(this Container container, Type type, Func<Container, Type, object> creator)
-        {
-            return new WithBuilder(container, creator, type);
-        }
-
-        [MustUseReturnValue]
-        public static WithBuilder Register<T>(this Container container, Func<Container, Type, T> creator) where T : class
-        {
-            return container.Register(typeof(T), creator);
-        }
-
-        [MustUseReturnValue]
-        public static WithBuilder Register<T>(this Container container)
-        {
-            return container.Register(typeof(T));
-        }
-
-        [MustUseReturnValue]
-        public static WithBuilder Register(this Container container, Type type)
-        {
-            var ci = FindConstructorInfo(type);
-            var (newFunc, parameters, labels) = ci.Compile();
-            var arguments = new ThreadLocal<object[]>(() => new object[parameters.Length]);
-            return container.Register(type, CreateInstance);
-
-            object CreateInstance(Container resolveContainer, Type _)
-            {
-                CircularCheck.Check(type);
-                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments.Value);
-                var instance = newFunc(args);
-                if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
-                return instance;
-            }
-        }
-
-        [MustUseReturnValue]
-        public static ResolverBuilder RegisterInstance<T>(this Container container, [NotNull] T instance)
-        {
-            if (instance == null) throw new ArgumentNullException(nameof(instance));
-            return new ResolverBuilder(container, instance.GetType(), (c, t) => instance);
-        }
-
-        // Unity/Mono: local function with default parameter is not supported by Mono?
-        public static object CallFunc<T>(this Container container, T func) where T : Delegate
-        {
-            using (CircularCheck.Create())
-            {
-                var method = func.Method;
-                if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
-                return method.Invoke(func.Target, container);
-            }
-        }
-
-        // Unity/Mono: local function with default parameter is not supported by Mono?
-        public static void CallAction<T>(this Container container, T action) where T : Delegate
-        {
-            using (CircularCheck.Create())
-            {
-                action.Method.Invoke(action.Target, container);
-            }
-        }
-
-        public static object Instantiate(this Container container, Type type)
-        {
-            using (CircularCheck.Create())
-            {
-                var ci = FindConstructorInfo(type);
-                return ci.Invoke(container);
-            }
-        }
-
-        [NotNull] public static T Instantiate<T>(this Container container)
-        {
-            return (T) container.Instantiate(typeof(T));
-        }
-
-        public static void DisposeContainer(this Container container)
-        {
-            var descendantsAndSelf = new HashSet<Container> { container };
-            var irrelevantContainers = new HashSet<Container>();
-            var containerHierarchy = new List<Container>();
-            foreach (var check in _containerParentMap.Keys)
-            {
-                containerHierarchy.Clear();
-                var containers = IsDescendant(check) ? descendantsAndSelf : irrelevantContainers;
-                foreach (var c in containerHierarchy) containers.Add(c);
-            }
-
-            foreach (var disposed in descendantsAndSelf)
-            {
-                _containerResolvers.Remove(disposed);
-                _containerParentMap.Remove(disposed);
-                foreach (var instance in disposed.DisposableInstances) instance.Dispose();
-                disposed.DisposableInstances = new ConcurrentBag<IDisposable>();
-            }
-
-            bool IsDescendant(Container check)
-            {
-                containerHierarchy.Add(check);
-                if (!_containerParentMap.TryGetValue(check, out var parent)) return false;
-                if (descendantsAndSelf.Contains(parent)) return true;
-                if (irrelevantContainers.Contains(parent)) return false;
-                return IsDescendant(parent);
-            }
-        }
-
-        private static ConstructorInfo FindConstructorInfo(Type type)
-        {
-            var constructors = type.GetConstructors();
-            ConstructorInfo? ci = null;
-            if (constructors.Length == 1) ci = constructors[0];
-            else if (constructors.Length > 1) ci = constructors.Single(c => c.GetCustomAttribute<InjectAttribute>() != null);
-            if (ci == null) throw new NotSupportedException($"cannot found constructor of type {type}");
-            return ci;
-        }
-
-        private static IEnumerable<List<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
-        {
-            for (;;)
-            {
-                if (_containerResolvers.TryGetValue(container, out var resolvers) && resolvers.TryGetValue(type, out var creators))
-                    yield return creators;
-                if (!_containerParentMap.TryGetValue(container, out container)) break;
-            }
-        }
-
-        private static Func<Container, Type, object>? FindFirstCreatorsInHierarchy(this Container container, Type type)
-        {
-            for (;;)
-            {
-                if (_containerResolvers.TryGetValue(container, out var resolvers)
-                    && resolvers.TryGetValue(type, out var creators)
-                    && creators.Count > 0
-                   ) return creators[0];
-                if (!_containerParentMap.TryGetValue(container, out container)) break;
-            }
-            return null;
-        }
-
-        internal static object ResolveParameterInfo(this Container container, ParameterInfo parameter, Type? label = null)
-        {
-            var parameterType = parameter.ParameterType;
-            var instance = container.ResolveImpl(parameterType, label);
-            if (instance != null) return instance;
-            return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
-        }
-
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type?[] labels, object?[]? arguments = null)
-        {
-            arguments ??= new object[parameters.Length];
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameter = parameters[i];
-                var label = labels[i];
-                arguments[i] = ResolveParameterInfo(container, parameter, label);
-            }
-            return arguments!;
-        }
-    }
-
     public static class InjectExtension
     {
         private static readonly Dictionary<Type, TypeInjector> _injectors = new Dictionary<Type, TypeInjector>();
@@ -432,7 +433,7 @@ namespace OneShot
             InjectAll(container, instance, instance.GetType());
         }
     }
-
+    
     class TypeInjector
     {
         private readonly Type _type;
