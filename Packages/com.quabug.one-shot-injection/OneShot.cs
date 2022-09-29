@@ -36,7 +36,7 @@ namespace OneShot
 {
     public sealed class Container : IDisposable
     {
-        internal readonly List<IDisposable> DisposableInstances = new List<IDisposable>();
+        internal readonly ConcurrentBag<IDisposable> DisposableInstances = new ConcurrentBag<IDisposable>();
         public void Dispose() => this.DisposeContainer();
     }
 
