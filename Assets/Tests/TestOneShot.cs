@@ -454,7 +454,8 @@ namespace OneShot.Test
             var child12 = child1.CreateChildContainer();
             var child2 = container.CreateChildContainer();
 
-            Assert.Catch<Exception>(() => container.ResolveGroup<int>());
+            // Assert.Catch<Exception>(() => container.ResolveGroup<int>());
+            Assert.That(container.ResolveGroup<int>(), Is.Empty);
 
             container.RegisterInstance(10).AsSelf();
             container.RegisterInstance(11).AsSelf();
@@ -463,11 +464,11 @@ namespace OneShot.Test
             child2.RegisterInstance(30).AsSelf();
             child11.RegisterInstance(40).AsSelf();
             child12.RegisterInstance(50).AsSelf();
-            Assert.That(new[] { 50, 22, 20, 11, 10 }, Is.EqualTo(child12.ResolveGroup<int>().ToArray()));
-            Assert.That(new[] { 40, 22, 20, 11, 10 }, Is.EqualTo(child11.ResolveGroup<int>().ToArray()));
-            Assert.That(new[] { 30, 11, 10 }, Is.EqualTo(child2.ResolveGroup<int>().ToArray()));
-            Assert.That(new[] { 22, 20, 11, 10 }, Is.EqualTo(child1.ResolveGroup<int>().ToArray()));
-            Assert.That(new[] { 11, 10 }, Is.EqualTo(container.ResolveGroup<int>().ToArray()));
+            Assert.That(new[] { 50, 22, 20, 11, 10 }, Is.EqualTo(child12.ResolveGroup<int>()));
+            Assert.That(new[] { 40, 22, 20, 11, 10 }, Is.EqualTo(child11.ResolveGroup<int>()));
+            Assert.That(new[] { 30, 11, 10 }, Is.EqualTo(child2.ResolveGroup<int>()));
+            Assert.That(new[] { 22, 20, 11, 10 }, Is.EqualTo(child1.ResolveGroup<int>()));
+            Assert.That(new[] { 11, 10 }, Is.EqualTo(container.ResolveGroup<int>()));
 
             var instance = child12.Instantiate<IntArrayClass>();
             Assert.AreEqual(50, instance.IntValue);
