@@ -26,6 +26,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Threading;
 using JetBrains.Annotations;
 #if !ENABLE_IL2CPP
 using System.Linq.Expressions;
@@ -203,7 +204,7 @@ namespace OneShot
             return (T) container.Resolve(typeof(T), label);
         }
 
-        [CanBeNull] private static object ResolveImpl(this Container container, Type type, Type label = null)
+        [CanBeNull] private static object ResolveImpl(this Container container, Type type, Type label)
         {
             {
                 var creatorKey = label == null ? type : label.CreateLabelType(type);
@@ -279,22 +280,14 @@ namespace OneShot
         {
             var ci = FindConstructorInfo(type);
             var (newFunc, parameters, labels) = ci.Compile();
+            var arguments = new ThreadLocal<object[]>(() => new object[parameters.Length]);
             return container.Register(type, CreateInstance);
 
             object CreateInstance(Container resolveContainer, Type _)
             {
                 CircularCheck.Check(type);
-                
-#if NETSTANDARD2_1
-                var arguments = System.Buffers.ArrayPool<object>.Shared.Rent(parameters.Length);
-#else
-                var arguments = new object[parameters.Length];
-#endif
-                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments);
+                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments.Value);
                 var instance = newFunc(args);
-#if NETSTANDARD2_1
-                System.Buffers.ArrayPool<object>.Shared.Return(arguments);
-#endif
                 if (instance is IDisposable disposable) resolveContainer.DisposableInstances.Add(disposable);
                 return instance;
             }
@@ -332,9 +325,7 @@ namespace OneShot
             using (CircularCheck.Create())
             {
                 var ci = FindConstructorInfo(type);
-                var (newFunc, parameters, labels) = ci.Compile();
-                var args = container.ResolveParameterInfos(parameters, labels);
-                return newFunc(args);
+                return ci.Invoke(container);
             }
         }
 
@@ -412,13 +403,13 @@ namespace OneShot
             return parameter.HasDefaultValue ? parameter.DefaultValue : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type[] labels = null, object[] arguments = null)
+        internal static object[] ResolveParameterInfos(this Container container, ParameterInfo[] parameters, Type[] labels, object[] arguments = null)
         {
             if (arguments == null) arguments = new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
-                var label = labels == null ? parameter.GetCustomAttribute<InjectAttribute>()?.Label : labels[i];
+                var label = labels[i];
                 arguments[i] = ResolveParameterInfo(container, parameter, label);
             }
             return arguments;
@@ -587,7 +578,7 @@ namespace OneShot
 
     static class ConstructorInfoCache
     {
-        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
+        private static readonly IDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
             new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])>();
 
         public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type[] labels) Compile(this ConstructorInfo ci)
