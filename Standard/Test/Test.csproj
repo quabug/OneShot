@@ -1,14 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
     <PropertyGroup>
-
         <IsPackable>false</IsPackable>
-
         <OutputType>Library</OutputType>
-
-        <LangVersion>9</LangVersion>
-
-        <TargetFramework>net6.0</TargetFramework>
+        <LangVersion>7.3</LangVersion>
+        <TargetFrameworks>net472;net5.0;net6.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
