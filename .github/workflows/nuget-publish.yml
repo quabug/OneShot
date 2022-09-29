@@ -22,8 +22,8 @@ jobs:
     - name: Pack
       run: |
         cd OneShotInjection
-        dotnet pack -c Release -o out
+        dotnet pack -c Release -o out Standard
     - name: Publish
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      run: dotnet nuget push ./OneShotInjection/out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push ./Standard/OneShotInjection/out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
