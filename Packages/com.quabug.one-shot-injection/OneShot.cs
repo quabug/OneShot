@@ -587,9 +587,8 @@ namespace OneShot
             var parameters = ci.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
 #if ENABLE_IL2CPP
-            _compiled.TryAdd(ci, (ci.Invoke, parameters, labels));
-            return (ci.Invoke, parameters, labels);
-#endif
+            Func<object[], object> func = ci.Invoke;
+#else
             var @params = Expression.Parameter(typeof(object[]));
             var args = parameters.Select((parameter, index) => Expression.Convert(
                 Expression.ArrayIndex(@params, Expression.Constant(index)),
@@ -598,6 +597,7 @@ namespace OneShot
             var @new = Expression.New(ci, args);
             var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
             var func = (Func<object[], object>) lambda.Compile();
+#endif
             _compiled.TryAdd(ci, (func, parameters, labels));
             return (func, parameters, labels);
         }
