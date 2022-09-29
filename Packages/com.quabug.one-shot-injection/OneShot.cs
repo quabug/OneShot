@@ -36,7 +36,7 @@ namespace OneShot
 {
     public sealed class Container : IDisposable
     {
-        internal readonly ConcurrentBag<IDisposable> DisposableInstances = new ConcurrentBag<IDisposable>();
+        internal ConcurrentBag<IDisposable> DisposableInstances { get; set; } = new ConcurrentBag<IDisposable>();
         public void Dispose() => this.DisposeContainer();
     }
 
@@ -352,7 +352,7 @@ namespace OneShot
                 _containerResolvers.Remove(disposed);
                 _containerParentMap.Remove(disposed);
                 foreach (var instance in disposed.DisposableInstances) instance.Dispose();
-                disposed.DisposableInstances.Clear();
+                disposed.DisposableInstances = new ConcurrentBag<IDisposable>();
             }
 
             bool IsDescendant(Container check)
@@ -542,24 +542,23 @@ namespace OneShot
 
     readonly struct CircularCheck : IDisposable
     {
-        [ThreadStatic] private static HashSet<Type> _circularCheckSet;
+        private static readonly ThreadLocal<HashSet<Type>> _circularCheckSet = new ThreadLocal<HashSet<Type>>(() => new HashSet<Type>());
 
         public static CircularCheck Create()
         {
-            if (_circularCheckSet == null) _circularCheckSet = new HashSet<Type>();
-            _circularCheckSet.Clear();
+            _circularCheckSet.Value.Clear();
             return new CircularCheck();
         }
 
         public static void Check(Type type)
         {
-            if (_circularCheckSet.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-            _circularCheckSet.Add(type);
+            if (_circularCheckSet.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
+            _circularCheckSet.Value.Add(type);
         }
 
         public void Dispose()
         {
-            _circularCheckSet.Clear();
+            _circularCheckSet.Value.Clear();
         }
     }
 
@@ -581,7 +580,7 @@ namespace OneShot
 
     static class ConstructorInfoCache
     {
-        private static readonly IDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
+        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])> _compiled =
             new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type[])>();
 
         public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type[] labels) Compile(this ConstructorInfo ci)
