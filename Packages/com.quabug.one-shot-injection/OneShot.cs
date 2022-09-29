@@ -387,11 +387,14 @@ namespace OneShot
 
         private static Func<Container, Type, object> FindFirstCreatorsInHierarchy(this Container container, Type type)
         {
-            do
+            for (;;)
             {
-                var creators = container.GetOrCreateResolver(type);
-                if (creators.Count > 0) return creators[0];
-            } while (_containerParentMap.TryGetValue(container, out container));
+                if (_containerResolvers.TryGetValue(container, out var resolvers)
+                    && resolvers.TryGetValue(type, out var creators)
+                    && creators.Count > 0
+                   ) return creators[0];
+                if (!_containerParentMap.TryGetValue(container, out container)) break;
+            }
             return null;
         }
 
