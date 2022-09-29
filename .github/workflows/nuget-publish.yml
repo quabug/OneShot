@@ -21,7 +21,7 @@ jobs:
       run: dotnet restore Standard
     - name: Pack
       run: |
-        cd OneShotInjection
+        cd Standard/OneShotInjection
         dotnet pack -c Release -o out Standard
     - name: Publish
       env:
