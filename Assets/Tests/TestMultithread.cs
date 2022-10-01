@@ -40,6 +40,7 @@ namespace OneShot.Test
             var count = _threadCount;
 
             var root = new Container();
+            root.PreAllocateArgumentArrayOnRegister = true;
 
             for(var i = 0; i < count; i++) new Thread(Run) { Name = $"Thread{i + 1}" }.Start(root);
 
