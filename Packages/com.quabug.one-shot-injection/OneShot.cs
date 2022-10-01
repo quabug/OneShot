@@ -39,37 +39,29 @@ namespace OneShot
     public sealed class Container : IDisposable
     {
         internal Container? Parent { get; private set; }
-
-        internal ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>> Resolvers => _resolvers!;
-        
-        private ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>? _resolvers
+        internal ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>> Resolvers { get; private set; }
             = new ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>();
-        private ConcurrentBag<IDisposable>? _disposableInstances = new ConcurrentBag<IDisposable>();
-        private ConcurrentBag<Container>? _children = new ConcurrentBag<Container>();
+        private ConcurrentBag<IDisposable> _disposableInstances = new ConcurrentBag<IDisposable>();
+        private ConcurrentBag<Container> _children = new ConcurrentBag<Container>();
 
         public bool EnableCircularCheck { get; set; } = true;
-        
-        // TODO: remove container from parent?
-        public void Dispose()
+        public bool PreAllocateArgumentArrayOnRegister { get; set; } = false;
+
+        #region creation
+
+        public Container() {}
+
+        public Container(Container parent)
         {
-            if (_children != null) foreach (var child in _children) child.Dispose();
-            _children = null;
-            if (_disposableInstances != null) foreach (var instance in _disposableInstances) instance.Dispose();
-            _disposableInstances = null;
-            Parent = null;
-            _resolvers?.Clear();
-            _resolvers = null!;
+            Parent = parent;
+            EnableCircularCheck = parent.EnableCircularCheck;
+            PreAllocateArgumentArrayOnRegister = parent.PreAllocateArgumentArrayOnRegister;
+            parent._children.Add(this);
         }
 
-        #region scope
-        
         public Container CreateChildContainer()
         {
-            var child =  new Container();
-            child.Parent = this;
-            child.EnableCircularCheck = EnableCircularCheck;
-            _children!.Add(child);
-            return child;
+            return new Container(this);
         }
 
         public Container BeginScope()
@@ -78,6 +70,18 @@ namespace OneShot
         }
 
         #endregion
+
+        // TODO: remove container from parent?
+        public void Dispose()
+        {
+            if (_children != null!) foreach (var child in _children) child.Dispose();
+            _children = null!;
+            if (_disposableInstances != null!) foreach (var instance in _disposableInstances) instance.Dispose();
+            _disposableInstances = null!;
+            Parent = null;
+            Resolvers?.Clear();
+            Resolvers = null!;
+        }
 
         #region Resolve
 
@@ -95,7 +99,7 @@ namespace OneShot
 
         public IEnumerable<T> ResolveGroup<T>()
         {
-            return ResolveGroup(typeof(T)).OfType<T>();
+            return ResolveGroup(typeof(T)).Cast<T>();
         }
 
         private object? ResolveImpl(Type type, Type? label)
@@ -110,9 +114,9 @@ namespace OneShot
             {
                 var elementType = type.GetElementType()!;
                 var arrayArgument = ResolveGroup(elementType);
-                if (arrayArgument.Any())
+                var source = arrayArgument.ToArray();
+                if (source.Length > 0)
                 {
-                    var source = arrayArgument.ToArray();
                     var dest = Array.CreateInstance(elementType, source.Length);
                     Array.Copy(source, dest, source.Length);
                     return dest;
@@ -151,6 +155,9 @@ namespace OneShot
         {
             var ci = FindConstructorInfo(type);
             var (newFunc, parameters, labels) = ci.Compile();
+            var preAllocatedArguments = PreAllocateArgumentArrayOnRegister
+                ? new ThreadLocal<object[]>(() => new object[parameters.Length])
+                : null;
             return Register(type, CreateInstance);
 
             object CreateInstance(Container resolveContainer, Type _)
@@ -159,7 +166,7 @@ namespace OneShot
                 if (enableCircularCheck) CircularCheck.Begin(type);
                 try
                 {
-                    var arguments = new object[parameters.Length];
+                    var arguments = preAllocatedArguments?.Value ?? new object[parameters.Length];
                     var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments);
                     var instance = newFunc(args);
                     if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
@@ -171,7 +178,7 @@ namespace OneShot
                 }
             }
         }
-        
+
         [MustUseReturnValue]
         public WithBuilder Register<T>(Func<Container, Type, T> creator) where T : class
         {
@@ -284,7 +291,7 @@ namespace OneShot
         public Type? Label { get; }
         public InjectAttribute(Type? label = null) => Label = label;
     }
-    
+
     // ReSharper disable once UnusedTypeParameter
     public interface ILabel<T> {}
 
@@ -384,13 +391,13 @@ namespace OneShot
     public class WithBuilder : LifetimeBuilder
     {
         public WithBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, creator, concreteType) {}
-        
+
         [MustUseReturnValue]
         public LifetimeBuilder With(params object[] instances)
         {
             return WithImpl(instances.Select(instance => (instance, (Type?)null)));
         }
-        
+
         [MustUseReturnValue]
         public LifetimeBuilder With(params (object instance, Type? label)[] labeledInstances)
         {
@@ -420,7 +427,7 @@ namespace OneShot
             InjectAll(container, instance, instance.GetType());
         }
     }
-    
+
     class TypeInjector
     {
         private readonly Type _type;
@@ -523,7 +530,7 @@ namespace OneShot
         public CircularDependencyException(string message, Exception inner) : base(message, inner) {}
         protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) {}
     }
-    
+
     static class CircularCheck
     {
         private static ThreadLocal<Stack<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<Stack<Type>>(() => new Stack<Type>());
@@ -533,7 +540,7 @@ namespace OneShot
             if (_CIRCULAR_CHECK_SET.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
             _CIRCULAR_CHECK_SET.Value.Push(type);
         }
-        
+
         public static void End()
         {
             _CIRCULAR_CHECK_SET.Value.Pop();
@@ -589,7 +596,7 @@ namespace OneShot
             return newFunc(args);
         }
     }
-    
+
     static class MethodInfoCache
     {
         private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> _COMPILED =
@@ -612,7 +619,7 @@ namespace OneShot
             return call(target, args);
         }
     }
-    
+
     static class PropertyInfoCache
     {
         private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> _COMPILED =
@@ -626,7 +633,7 @@ namespace OneShot
             return (pi.SetValue, label);
         }
     }
-    
+
     static class FieldInfoCache
     {
         private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> _COMPILED =
