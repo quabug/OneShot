@@ -20,6 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#nullable enable
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -44,6 +46,8 @@ namespace OneShot
             = new ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>();
         private ConcurrentBag<IDisposable>? _disposableInstances = new ConcurrentBag<IDisposable>();
         private ConcurrentBag<Container>? _children = new ConcurrentBag<Container>();
+
+        public bool EnableCircularCheck { get; set; } = true;
         
         // TODO: remove container from parent?
         public void Dispose()
@@ -63,6 +67,7 @@ namespace OneShot
         {
             var child =  new Container();
             child.Parent = this;
+            child.EnableCircularCheck = EnableCircularCheck;
             _children!.Add(child);
             return child;
         }
@@ -150,13 +155,20 @@ namespace OneShot
 
             object CreateInstance(Container resolveContainer, Type _)
             {
-#if !ONESHOT_DISABLE_CIRCULAR_CHECK
-                using var check = new CircularCheck(type);
-#endif
-                var args = resolveContainer.ResolveParameterInfos(parameters, labels);
-                var instance = newFunc(args);
-                if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
-                return instance;
+                var enableCircularCheck = EnableCircularCheck;
+                if (enableCircularCheck) CircularCheck.Begin(type);
+                try
+                {
+                    var arguments = new object[parameters.Length];
+                    var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments);
+                    var instance = newFunc(args);
+                    if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
+                    return instance;
+                }
+                finally
+                {
+                    if (enableCircularCheck) CircularCheck.End();
+                }
             }
         }
         
@@ -253,16 +265,15 @@ namespace OneShot
             return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal object[] ResolveParameterInfos(ParameterInfo[] parameters, Type?[] labels)
+        internal object[] ResolveParameterInfos(ParameterInfo[] parameters, Type?[] labels, object[] arguments)
         {
-            var arguments = new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
                 var label = labels[i];
                 arguments[i] = ResolveParameterInfo(parameter, label);
             }
-            return arguments!;
+            return arguments;
         }
     }
 
@@ -512,18 +523,18 @@ namespace OneShot
         public CircularDependencyException(string message, Exception inner) : base(message, inner) {}
         protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) {}
     }
-
-    readonly struct CircularCheck : IDisposable
+    
+    static class CircularCheck
     {
         private static ThreadLocal<Stack<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<Stack<Type>>(() => new Stack<Type>());
 
-        public CircularCheck(Type type)
+        public static void Begin(Type type)
         {
             if (_CIRCULAR_CHECK_SET.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
             _CIRCULAR_CHECK_SET.Value.Push(type);
         }
         
-        public void Dispose()
+        public static void End()
         {
             _CIRCULAR_CHECK_SET.Value.Pop();
         }
@@ -573,7 +584,8 @@ namespace OneShot
         public static object Invoke(this ConstructorInfo ci, Container container)
         {
             var (newFunc, parameters, labels) = ci.Compile();
-            var args = container.ResolveParameterInfos(parameters, labels);
+            var arguments = new object[parameters.Length];
+            var args = container.ResolveParameterInfos(parameters, labels, arguments);
             return newFunc(args);
         }
     }
@@ -595,7 +607,8 @@ namespace OneShot
         public static object Invoke(this MethodInfo mi, object target, Container container)
         {
             var (call, parameters, labels) = mi.Compile();
-            var args = container.ResolveParameterInfos(parameters, labels);
+            var arguments = new object[parameters.Length];
+            var args = container.ResolveParameterInfos(parameters, labels, arguments);
             return call(target, args);
         }
     }
