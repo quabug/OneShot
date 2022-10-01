@@ -1,5 +1,4 @@
 ﻿using NUnit.Framework;
-using OneShot;
 using Unity.PerformanceTesting;
 using VContainer;
 using VContainer.Benchmark.Fixtures;
@@ -14,25 +13,6 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveSingleton()
         {
-            var zenjectContainer = new Zenject.DiContainer();
-            zenjectContainer.Bind<ISingleton1>().To<Singleton1>().AsSingle();
-            zenjectContainer.Bind<ISingleton2>().To<Singleton2>().AsSingle();
-            zenjectContainer.Bind<ISingleton3>().To<Singleton3>().AsSingle();
-
-            Measure
-                .Method(() =>
-                {
-                    for (var i = 0; i < N; i++)
-                    {
-                        zenjectContainer.Resolve<ISingleton1>();
-                        zenjectContainer.Resolve<ISingleton2>();
-                        zenjectContainer.Resolve<ISingleton3>();
-                    }
-                })
-                .SampleGroup("Zenject")
-                .GC()
-                .Run();
-
             var reflexContainer = new Reflex.Container("test");
             reflexContainer.BindSingleton<ISingleton1, Singleton1>();
             reflexContainer.BindSingleton<ISingleton2, Singleton2>();
@@ -87,7 +67,22 @@ namespace VvContainer.Benchmark
                         container.Resolve<ISingleton3>();
                     }
                 })
-                .SampleGroup("OneShot")
+                .SampleGroup("OneShot with CircularCheck")
+                .GC()
+                .Run();
+            
+            container.EnableCircularCheck = false;
+            Measure
+                .Method(() =>
+                {
+                    for (var i = 0; i < N; i++)
+                    {
+                        container.Resolve<ISingleton1>();
+                        container.Resolve<ISingleton2>();
+                        container.Resolve<ISingleton3>();
+                    }
+                })
+                .SampleGroup("OneShot)")
                 .GC()
                 .Run();
         }
@@ -96,25 +91,6 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveTransient()
         {
-            var zenjectContainer = new Zenject.DiContainer();
-            zenjectContainer.Bind<ITransient1>().To<Transient1>().AsTransient();
-            zenjectContainer.Bind<ITransient2>().To<Transient2>().AsTransient();
-            zenjectContainer.Bind<ITransient3>().To<Transient3>().AsTransient();
-
-            Measure
-                .Method(() =>
-                {
-                    for (var i = 0; i < N; i++)
-                    {
-                        zenjectContainer.Resolve<ITransient1>();
-                        zenjectContainer.Resolve<ITransient2>();
-                        zenjectContainer.Resolve<ITransient3>();
-                    }
-                })
-                .SampleGroup("Zenject")
-                .GC()
-                .Run();
-
             var reflexContainer = new Reflex.Container("test");
             reflexContainer.BindTransient<ITransient1, Transient1>();
             reflexContainer.BindTransient<ITransient2, Transient2>();
@@ -169,6 +145,21 @@ namespace VvContainer.Benchmark
                         container.Resolve<ITransient3>();
                     }
                 })
+                .SampleGroup("OneShot with CircularCheck")
+                .GC()
+                .Run();
+
+            container.EnableCircularCheck = false;
+            Measure
+                .Method(() =>
+                {
+                    for (var i = 0; i < N; i++)
+                    {
+                        container.Resolve<ITransient1>();
+                        container.Resolve<ITransient2>();
+                        container.Resolve<ITransient3>();
+                    }
+                })
                 .SampleGroup("OneShot")
                 .GC()
                 .Run();
@@ -178,31 +169,6 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveCombined()
         {
-            var zenjectContainer = new Zenject.DiContainer();
-            zenjectContainer.Bind<ISingleton1>().To<Singleton1>().AsSingle();
-            zenjectContainer.Bind<ISingleton2>().To<Singleton2>().AsSingle();
-            zenjectContainer.Bind<ISingleton3>().To<Singleton3>().AsSingle();
-            zenjectContainer.Bind<ITransient1>().To<Transient1>().AsTransient();
-            zenjectContainer.Bind<ITransient2>().To<Transient2>().AsTransient();
-            zenjectContainer.Bind<ITransient3>().To<Transient3>().AsTransient();
-            zenjectContainer.Bind<ICombined1>().To<Combined1>().AsTransient();
-            zenjectContainer.Bind<ICombined2>().To<Combined2>().AsTransient();
-            zenjectContainer.Bind<ICombined3>().To<Combined3>().AsTransient();
-
-            Measure
-                .Method(() =>
-                {
-                    for (var i = 0; i < N; i++)
-                    {
-                        zenjectContainer.Resolve<ICombined1>();
-                        zenjectContainer.Resolve<ICombined2>();
-                        zenjectContainer.Resolve<ICombined3>();
-                    }
-                })
-                .SampleGroup("Zenject")
-                .GC()
-                .Run();
-
             var reflexContainer = new Reflex.Container("test");
             reflexContainer.BindSingleton<ISingleton1, Singleton1>();
             reflexContainer.BindSingleton<ISingleton2, Singleton2>();
@@ -275,6 +241,21 @@ namespace VvContainer.Benchmark
                         container.Resolve<ICombined3>();
                     }
                 })
+                .SampleGroup("OneShot with CircularCheck")
+                .GC()
+                .Run();
+
+            container.EnableCircularCheck = false;
+            Measure
+                .Method(() =>
+                {
+                    for (var i = 0; i < N; i++)
+                    {
+                        container.Resolve<ICombined1>();
+                        container.Resolve<ICombined2>();
+                        container.Resolve<ICombined3>();
+                    }
+                })
                 .SampleGroup("OneShot")
                 .GC()
                 .Run();
@@ -284,34 +265,6 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveComplex()
         {
-            var zenjectContainer = new Zenject.DiContainer();
-            zenjectContainer.Bind<IFirstService>().To<FirstService>().AsSingle();
-            zenjectContainer.Bind<ISecondService>().To<SecondService>().AsSingle();
-            zenjectContainer.Bind<IThirdService>().To<ThirdService>().AsSingle();
-            zenjectContainer.Bind<ISubObjectA>().To<SubObjectA>().AsTransient();
-            zenjectContainer.Bind<ISubObjectB>().To<SubObjectB>().AsTransient();
-            zenjectContainer.Bind<ISubObjectC>().To<SubObjectC>().AsTransient();
-            zenjectContainer.Bind<IComplex1>().To<Complex1>().AsTransient();
-            zenjectContainer.Bind<IComplex2>().To<Complex2>().AsTransient();
-            zenjectContainer.Bind<IComplex3>().To<Complex3>().AsTransient();
-            zenjectContainer.Bind<ISubObjectOne>().To<SubObjectOne>().AsTransient();
-            zenjectContainer.Bind<ISubObjectTwo>().To<SubObjectTwo>().AsTransient();
-            zenjectContainer.Bind<ISubObjectThree>().To<SubObjectThree>().AsTransient();
-
-            Measure
-                .Method(() =>
-                {
-                    for (var i = 0; i < N; i++)
-                    {
-                        zenjectContainer.Resolve<IComplex1>();
-                        zenjectContainer.Resolve<IComplex2>();
-                        zenjectContainer.Resolve<IComplex3>();
-                    }
-                })
-                .SampleGroup("Zenject")
-                .GC()
-                .Run();
-
             var reflexContainer = new Reflex.Container("test");
             reflexContainer.BindSingleton<IFirstService, FirstService>();
             reflexContainer.BindSingleton<ISecondService, SecondService>();
@@ -397,6 +350,23 @@ namespace VvContainer.Benchmark
                     }
                     // UnityEngine.Profiling.Profiler.EndSample();
                 })
+                .SampleGroup("OneShot with CircularCheck")
+                .GC()
+                .Run();
+
+            container.EnableCircularCheck = false;
+            Measure
+                .Method(() =>
+                {
+                    // UnityEngine.Profiling.Profiler.BeginSample("VContainer Resolve(Complex)");
+                    for (var i = 0; i < N; i++)
+                    {
+                        container.Resolve<IComplex1>();
+                        container.Resolve<IComplex2>();
+                        container.Resolve<IComplex3>();
+                    }
+                    // UnityEngine.Profiling.Profiler.EndSample();
+                })
                 .SampleGroup("OneShot")
                 .GC()
                 .Run();
@@ -437,30 +407,6 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ContainerBuildComplex()
         {
-            Measure
-                .Method(() =>
-                {
-                    for (var i = 0; i < N; i++)
-                    {
-                        var zenjectContainer = new Zenject.DiContainer();
-                        zenjectContainer.Bind<IFirstService>().To<FirstService>().AsSingle();
-                        zenjectContainer.Bind<ISecondService>().To<SecondService>().AsSingle();
-                        zenjectContainer.Bind<IThirdService>().To<ThirdService>().AsSingle();
-                        zenjectContainer.Bind<ISubObjectA>().To<SubObjectA>().AsTransient();
-                        zenjectContainer.Bind<ISubObjectB>().To<SubObjectB>().AsTransient();
-                        zenjectContainer.Bind<ISubObjectC>().To<SubObjectC>().AsTransient();
-                        zenjectContainer.Bind<IComplex1>().To<Complex1>().AsTransient();
-                        zenjectContainer.Bind<IComplex2>().To<Complex2>().AsTransient();
-                        zenjectContainer.Bind<IComplex3>().To<Complex3>().AsTransient();
-                        zenjectContainer.Bind<ISubObjectOne>().To<SubObjectOne>().AsTransient();
-                        zenjectContainer.Bind<ISubObjectTwo>().To<SubObjectTwo>().AsTransient();
-                        zenjectContainer.Bind<ISubObjectThree>().To<SubObjectThree>().AsTransient();
-                    }
-                })
-                .SampleGroup("Zenject")
-                .GC()
-                .Run();
-
             Measure
                 .Method(() =>
                 {
