@@ -146,13 +146,14 @@ namespace OneShot
         {
             var ci = FindConstructorInfo(type);
             var (newFunc, parameters, labels) = ci.Compile();
-            var arguments = new ThreadLocal<object[]>(() => new object[parameters.Length]);
             return Register(type, CreateInstance);
 
             object CreateInstance(Container resolveContainer, Type _)
             {
+#if !ONESHOT_DISABLE_CIRCULAR_CHECK
                 using var check = new CircularCheck(type);
-                var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments.Value);
+#endif
+                var args = resolveContainer.ResolveParameterInfos(parameters, labels);
                 var instance = newFunc(args);
                 if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
                 return instance;
@@ -252,9 +253,9 @@ namespace OneShot
             return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
 
-        internal object[] ResolveParameterInfos(ParameterInfo[] parameters, Type?[] labels, object?[]? arguments = null)
+        internal object[] ResolveParameterInfos(ParameterInfo[] parameters, Type?[] labels)
         {
-            arguments ??= new object[parameters.Length];
+            var arguments = new object[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
             {
                 var parameter = parameters[i];
@@ -514,20 +515,17 @@ namespace OneShot
 
     readonly struct CircularCheck : IDisposable
     {
-        private static ThreadLocal<HashSet<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<HashSet<Type>>(() => new HashSet<Type>());
+        private static ThreadLocal<Stack<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<Stack<Type>>(() => new Stack<Type>());
 
-        private readonly Type _type;
-        
         public CircularCheck(Type type)
         {
             if (_CIRCULAR_CHECK_SET.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-            _CIRCULAR_CHECK_SET.Value.Add(type);
-            _type = type;
+            _CIRCULAR_CHECK_SET.Value.Push(type);
         }
-
+        
         public void Dispose()
         {
-            _CIRCULAR_CHECK_SET.Value.Remove(_type);
+            _CIRCULAR_CHECK_SET.Value.Pop();
         }
     }
 
