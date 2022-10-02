@@ -6,102 +6,6 @@ namespace OneShot.Test
 {
     public class TestOneShot
     {
-        interface InterfaceA {}
-        class TypeA : InterfaceA {}
-
-        class DefaultConstructor
-        {
-            public readonly TypeA TypeA;
-            public DefaultConstructor(TypeA typeA) => TypeA = typeA;
-            public int GetIntValue() => 100;
-        }
-
-        class InjectConstructor
-        {
-            public readonly TypeA TypeA;
-            [Inject] public InjectConstructor(TypeA typeA) => TypeA = typeA;
-            public InjectConstructor(DefaultConstructor defaultConstructor) => TypeA = null;
-        }
-
-        class ConstructorWithDefaultParameter
-        {
-            public readonly TypeA TypeA;
-            public readonly int IntValue = 0;
-            public ConstructorWithDefaultParameter(TypeA typeA, int intValue = 10)
-            {
-                TypeA = typeA;
-                IntValue = intValue;
-            }
-        }
-
-        class ComplexClass
-        {
-            public readonly TypeA A;
-            public readonly InterfaceA B;
-            public readonly InjectConstructor C;
-            public readonly float D;
-            public readonly ConstructorWithDefaultParameter E;
-            public readonly Func<int> GetIntValue;
-
-            public ComplexClass(TypeA a, InterfaceA b, InjectConstructor c, float d = 22, ConstructorWithDefaultParameter e = null, Func<int> getIntValue = null)
-            {
-                A = a;
-                B = b;
-                C = c;
-                D = d;
-                E = e;
-                GetIntValue = getIntValue;
-            }
-        }
-
-        [Test]
-        public void should_resolve_instance()
-        {
-            var container = new Container();
-            var instance = new TypeA();
-            container.RegisterInstance(instance).AsSelf();
-            Assert.AreSame(instance, container.Resolve<TypeA>());
-        }
-
-        [Test]
-        public void should_resolve_singleton()
-        {
-            var container = new Container();
-            container.Register<TypeA>().Singleton().AsSelf();
-            Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
-        }
-
-        [Test]
-        public void should_resolve_singleton_func()
-        {
-            var container = new Container();
-            Func<Container, Type, TypeA> createTypeA = (c, t) => new TypeA();
-            container.Register(createTypeA).Singleton().AsSelf();
-            Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
-        }
-
-        [Test]
-        public void should_resolve_transient()
-        {
-            var container = new Container();
-            container.Register<TypeA>().AsSelf();
-            Assert.AreNotSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
-        }
-
-        [Test]
-        public void should_resolve_scoped()
-        {
-            var container = new Container();
-            container.Register<TypeA>().Scope().AsSelf();
-            Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
-            var childContainer = container.CreateChildContainer();
-            Assert.AreNotSame(container.Resolve<TypeA>(), childContainer.Resolve<TypeA>());
-            Assert.AreSame(childContainer.Resolve<TypeA>(), childContainer.Resolve<TypeA>());
-            var grandChildContainer = childContainer.CreateChildContainer();
-            Assert.AreNotSame(childContainer.Resolve<TypeA>(), grandChildContainer.Resolve<TypeA>());
-            Assert.AreSame(grandChildContainer.Resolve<TypeA>(), grandChildContainer.Resolve<TypeA>());
-        }
-
         [Test]
         public void should_not_able_to_register_invalid_type()
         {
@@ -197,26 +101,6 @@ namespace OneShot.Test
         }
 
         [Test]
-        public void should_resolve_types_in_parent_container()
-        {
-            var container = new Container();
-            var instance = new TypeA();
-            container.RegisterInstance(instance).AsSelf();
-
-            var child1 = container.CreateChildContainer();
-            child1.Resolve<TypeA>();
-            child1.Register<DefaultConstructor>().Singleton().AsSelf();
-            Assert.AreSame(child1.Resolve<DefaultConstructor>(), child1.Resolve<DefaultConstructor>());
-            Assert.AreSame(instance, child1.Resolve<DefaultConstructor>().TypeA);
-
-            var child2 = container.CreateChildContainer();
-            child2.Resolve<TypeA>();
-            child2.Register<DefaultConstructor>().AsSelf();
-            Assert.AreNotSame(child2.Resolve<DefaultConstructor>(), child2.Resolve<DefaultConstructor>());
-            Assert.AreSame(instance, child2.Resolve<DefaultConstructor>().TypeA);
-        }
-
-        [Test]
         public void should_override_register()
         {
             var container = new Container();
@@ -233,43 +117,7 @@ namespace OneShot.Test
             Assert.Catch<Exception>(() => container.Resolve<TypeA>());
             Assert.Catch<Exception>(() => container.Resolve<DefaultConstructor>());
         }
-
-        class A
-        {
-            public A(B b) {}
-        }
-
-        class B
-        {
-            public B(A a) {}
-        }
-
-        [Test]
-        public void should_throw_on_directly_circular_dependency()
-        {
-            var container = new Container();
-            container.Register<A>().AsSelf();
-            container.Register<B>().AsSelf();
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<A>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<B>());
-        }
-
-        private class C { public C(D _) {} }
-        private class D { public D(E _) {} }
-        private class E { public E(C _) {} }
-
-        [Test]
-        public void should_throw_on_indirectly_circular_dependency()
-        {
-            var container = new Container();
-            container.Register<C>().AsSelf();
-            container.Register<D>().AsSelf();
-            container.Register<E>().AsSelf();
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<C>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<D>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<E>());
-        }
-
+        
         class Injected
         {
             [Inject] public int Int;
@@ -402,37 +250,6 @@ namespace OneShot.Test
             Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
         }
 
-        [Test]
-        public void should_dispose_container()
-        {
-            var container = new Container();
-            container.RegisterInstance(10).AsSelf();
-            container.Resolve<int>();
-            container.Dispose();
-            Assert.Catch<Exception>(() => container.Resolve<int>());
-        }
-
-        [Test]
-        public void should_dispose_container_hierarchy()
-        {
-            var container = new Container();
-            container.RegisterInstance(10).AsSelf();
-            var child1 = container.CreateChildContainer();
-            var child11 = child1.CreateChildContainer();
-            var child12 = child1.CreateChildContainer();
-            var child121 = child12.CreateChildContainer();
-            var child122 = child12.CreateChildContainer();
-            Assert.AreEqual(10, child122.Resolve<int>());
-            var child2 = container.CreateChildContainer();
-            child1.Dispose();
-            Assert.Catch<Exception>(() => child1.Resolve<int>());
-            Assert.Catch<Exception>(() => child11.Resolve<int>());
-            Assert.Catch<Exception>(() => child12.Resolve<int>());
-            Assert.Catch<Exception>(() => child121.Resolve<int>());
-            Assert.Catch<Exception>(() => child122.Resolve<int>());
-            Assert.AreEqual(10, child2.Resolve<int>());
-        }
-
         class IntArrayClass
         {
             public readonly int IntValue;
@@ -479,103 +296,6 @@ namespace OneShot.Test
             Assert.That(new[] { 11, 10 }, Is.EqualTo(instance.IntArray));
         }
 
-        public class Disposable : IDisposable
-        {
-            public int DisposedCount = 0;
-            public void Dispose() => DisposedCount++;
-        }
-
-        [Test]
-        public void should_dispose_transient_instances_of_container()
-        {
-            var container = new Container();
-            var childContainer = container.CreateChildContainer();
-            container.Register<Disposable>().AsSelf();
-            var disposable1 = container.Resolve<Disposable>();
-            var disposable2 = container.Resolve<Disposable>();
-            var childDisposable = childContainer.Resolve<Disposable>();
-
-            Assert.AreNotSame(disposable1, disposable2);
-            Assert.AreNotSame(disposable1, childDisposable);
-            Assert.AreEqual(0, disposable1.DisposedCount);
-            Assert.AreEqual(0, disposable2.DisposedCount);
-            Assert.AreEqual(0, childDisposable.DisposedCount);
-
-            childContainer.Dispose();
-            Assert.AreEqual(0, disposable1.DisposedCount);
-            Assert.AreEqual(0, disposable2.DisposedCount);
-            Assert.AreEqual(1, childDisposable.DisposedCount);
-
-            container.Dispose();
-            Assert.AreEqual(1, disposable1.DisposedCount);
-            Assert.AreEqual(1, disposable2.DisposedCount);
-            Assert.AreEqual(1, childDisposable.DisposedCount);
-        }
-
-        [Test]
-        public void should_dispose_singleton_instances_of_container()
-        {
-            var container = new Container();
-            var childContainer = container.CreateChildContainer();
-            container.Register<Disposable>().Singleton().AsSelf();
-            var disposable1 = container.Resolve<Disposable>();
-            var disposable2 = container.Resolve<Disposable>();
-            var childDisposable = childContainer.Resolve<Disposable>();
-
-            Assert.AreSame(disposable1, disposable2);
-            Assert.AreSame(disposable1, childDisposable);
-            Assert.AreEqual(0, disposable1.DisposedCount);
-
-            childContainer.Dispose();
-            Assert.AreEqual(0, disposable1.DisposedCount);
-
-            container.Dispose();
-            Assert.AreEqual(1, disposable1.DisposedCount);
-        }
-
-        [Test]
-        public void should_dispose_scope_instances_of_container()
-        {
-            var container = new Container();
-            var childContainer = container.CreateChildContainer();
-            container.Register<Disposable>().Scope().AsSelf();
-            var disposable1 = container.Resolve<Disposable>();
-            var disposable2 = container.Resolve<Disposable>();
-            var childDisposable1 = childContainer.Resolve<Disposable>();
-            var childDisposable2 = childContainer.Resolve<Disposable>();
-
-            Assert.AreSame(disposable1, disposable2);
-            Assert.AreSame(childDisposable1, childDisposable2);
-            Assert.AreNotSame(disposable1, childDisposable1);
-
-            Assert.AreEqual(0, disposable1.DisposedCount);
-            Assert.AreEqual(0, childDisposable1.DisposedCount);
-
-            childContainer.Dispose();
-            Assert.AreEqual(0, disposable1.DisposedCount);
-            Assert.AreEqual(1, childDisposable1.DisposedCount);
-
-            container.Dispose();
-            Assert.AreEqual(1, disposable1.DisposedCount);
-            Assert.AreEqual(1, childDisposable1.DisposedCount);
-        }
-
-        [Test]
-        public void should_dispose_all_instances_in_hierarchy_of_container()
-        {
-            var container = new Container();
-            var childContainer = container.CreateChildContainer();
-            container.Register<Disposable>().AsSelf();
-            var disposable1 = container.Resolve<Disposable>();
-            var disposable2 = container.Resolve<Disposable>();
-            var childDisposable = childContainer.Resolve<Disposable>();
-
-            container.Dispose();
-            Assert.AreEqual(1, disposable1.DisposedCount);
-            Assert.AreEqual(1, disposable2.DisposedCount);
-            Assert.AreEqual(1, childDisposable.DisposedCount);
-        }
-
         class InjectMethod
         {
             [Inject] void Inject(InterfaceA _) {}
@@ -587,51 +307,6 @@ namespace OneShot.Test
             var container = new Container();
             container.Register<TypeA>().Singleton().AsInterfaces();
             Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
-        }
-
-        class InjectInt
-        {
-            public int Value;
-            public InjectInt(int value) => Value = value;
-        }
-        
-        [Test]
-        public void should_create_singleton_instance_based_on_registered_container()
-        {
-            var container = new Container();
-            container.Register<InjectInt>().Singleton().AsSelf();
-            container.RegisterInstance(123).AsSelf();
-            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
-            var subContainer = container.CreateChildContainer();
-            subContainer.RegisterInstance(234).AsSelf();
-            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(123));
-        }
-        
-        [Test]
-        public void should_create_scoped_instance_based_on_resolved_container()
-        {
-            var container = new Container();
-            container.Register<InjectInt>().Scope().AsSelf();
-            container.RegisterInstance(123).AsSelf();
-            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
-            var subContainer = container.CreateChildContainer();
-            subContainer.RegisterInstance(234).AsSelf();
-            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
-        }
-        
-        [Test]
-        public void should_create_transient_instance_based_on_resolved_container()
-        {
-            var container = new Container();
-            container.Register<InjectInt>().Transient().AsSelf();
-            container.RegisterInstance(123).AsSelf();
-            Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
-            var subContainer = container.CreateChildContainer();
-            subContainer.RegisterInstance(234).AsSelf();
-            Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
         }
 
         class InjectTypeA

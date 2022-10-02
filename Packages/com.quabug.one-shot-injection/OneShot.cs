@@ -46,6 +46,7 @@ namespace OneShot
 
         public bool EnableCircularCheck { get; set; } = true;
         public bool PreAllocateArgumentArrayOnRegister { get; set; } = false;
+        public bool PreventDisposableTransient { get; set; } = false;
 
         #region creation
 
@@ -56,6 +57,7 @@ namespace OneShot
             Parent = parent;
             EnableCircularCheck = parent.EnableCircularCheck;
             PreAllocateArgumentArrayOnRegister = parent.PreAllocateArgumentArrayOnRegister;
+            PreventDisposableTransient = parent.PreventDisposableTransient;
             parent._children.Add(this);
         }
 
@@ -195,7 +197,7 @@ namespace OneShot
         public ResolverBuilder RegisterInstance<T>([NotNull] T instance)
         {
             if (instance == null) throw new ArgumentNullException(nameof(instance));
-            return new ResolverBuilder(this, instance.GetType(), (c, t) => instance);
+            return new ResolverBuilder(this, instance.GetType(), (c, t) => instance, Lifetime.Singleton);
         }
 
         #endregion
@@ -295,25 +297,31 @@ namespace OneShot
     // ReSharper disable once UnusedTypeParameter
     public interface ILabel<T> {}
 
+    internal enum Lifetime { Transient, Singleton, Scope }
+
     public class ResolverBuilder
     {
-        protected readonly Container _Container;
-        protected readonly Func<Container, Type, object> _Creator;
-        protected readonly Type _ConcreteType;
+        internal readonly Lifetime Lifetime;
+        internal readonly Container Container;
+        internal readonly Func<Container, Type, object> Creator;
+        internal readonly Type ConcreteType;
 
-        public ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator)
+        internal ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator, Lifetime lifetime)
         {
-            _Container = container;
-            _Creator = creator;
-            _ConcreteType = concreteType;
+            Container = container;
+            Creator = creator;
+            Lifetime = lifetime;
+            ConcreteType = concreteType;
         }
 
         public ResolverBuilder As(Type contractType, Type? label = null)
         {
-            if (!contractType.IsAssignableFrom(_ConcreteType)) throw new ArgumentException($"concreteType({_ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
+            if (Container.PreventDisposableTransient && Lifetime == Lifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
+                throw new ArgumentException($"disposable type {ConcreteType} cannot register as transient. this check can be disabled by set {nameof(OneShot.Container.PreventDisposableTransient)} to false.");
+            if (!contractType.IsAssignableFrom(ConcreteType)) throw new ArgumentException($"concreteType({ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
             if (label != null) contractType = label.CreateLabelType(contractType);
             var resolver = GetOrCreateResolver(contractType);
-            if (!resolver.Contains(_Creator)) resolver.Push(_Creator);
+            if (!resolver.Contains(Creator)) resolver.Push(Creator);
             return this;
         }
 
@@ -324,18 +332,18 @@ namespace OneShot
 
         public ResolverBuilder AsSelf(Type? label = null)
         {
-            return As(_ConcreteType, label);
+            return As(ConcreteType, label);
         }
 
         public ResolverBuilder AsInterfaces(Type? label = null)
         {
-            foreach (var @interface in _ConcreteType.GetInterfaces()) As(@interface, label);
+            foreach (var @interface in ConcreteType.GetInterfaces()) As(@interface, label);
             return this;
         }
 
         public ResolverBuilder AsBases(Type? label = null)
         {
-            var baseType = _ConcreteType.BaseType;
+            var baseType = ConcreteType.BaseType;
             while (baseType != null && baseType != typeof(Object) && baseType != typeof(ValueType))
             {
                 As(baseType, label);
@@ -346,10 +354,10 @@ namespace OneShot
 
         private ConcurrentStack<Func<Container, Type, object>> GetOrCreateResolver(Type type)
         {
-            if (!_Container.Resolvers.TryGetValue(type, out var resolvers))
+            if (!Container.Resolvers.TryGetValue(type, out var resolvers))
             {
                 resolvers = new ConcurrentStack<Func<Container, Type, object>>();
-                _Container.Resolvers[type] = resolvers;
+                Container.Resolvers[type] = resolvers;
             }
             return resolvers;
         }
@@ -357,7 +365,8 @@ namespace OneShot
 
     public class LifetimeBuilder : ResolverBuilder
     {
-        public LifetimeBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, concreteType, creator) {}
+        internal LifetimeBuilder(Container container, Func<Container, Type, object> creator, Type concreteType)
+            : base(container, concreteType, creator, Lifetime.Transient) {}
 
         [MustUseReturnValue]
         public ResolverBuilder Transient()
@@ -368,21 +377,21 @@ namespace OneShot
         [MustUseReturnValue]
         public ResolverBuilder Singleton()
         {
-            var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
-            return new ResolverBuilder(_Container, _ConcreteType, (container, contractType) => lazyValue.Value);
+            var lazyValue = new Lazy<object>(() => Creator(Container, ConcreteType));
+            return new ResolverBuilder(Container, ConcreteType, (container, contractType) => lazyValue.Value, Lifetime.Singleton);
         }
 
         [MustUseReturnValue]
         public ResolverBuilder Scope()
         {
-            var lazyValue = new Lazy<object>(() => _Creator(_Container, _ConcreteType));
-            return new ResolverBuilder(_Container, _ConcreteType, ResolveScopeInstance);
+            var lazyValue = new Lazy<object>(() => Creator(Container, ConcreteType));
+            return new ResolverBuilder(Container, ConcreteType, ResolveScopeInstance, Lifetime.Scope);
 
             object ResolveScopeInstance(Container container, Type contractType)
             {
-                if (container == _Container) return lazyValue.Value;
+                if (container == Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(_ConcreteType, _Creator).Scope().As(contractType);
+                container.Register(ConcreteType, Creator).Scope().As(contractType);
                 return container.Resolve(contractType);
             }
         }
@@ -406,9 +415,9 @@ namespace OneShot
 
         private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type? label)> labeledInstances)
         {
-            var container = _Container.CreateChildContainer();
+            var container = Container.CreateChildContainer();
             foreach (var (instance, label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
-            return new LifetimeBuilder(_Container, (_, contractType) => _Creator(container, contractType), _ConcreteType);
+            return new LifetimeBuilder(Container, (_, contractType) => Creator(container, contractType), ConcreteType);
         }
     }
 
