@@ -16,7 +16,7 @@ A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
 ## Usage
 [Test Cases](Assets/Tests)
 
-### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L32)
+### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L39)
 A scope mark for registered types.
 
 ``` c#
@@ -28,9 +28,19 @@ var child = container.CreateChildContainer();
 
 // create a scope container (exactly same as child container)
 using (var scope = container.BeginScope())
+
+// container options
+// enable/disable circular check, enabled by default
+container.EnableCircularCheck = false;
+
+// pre-allocate argument array of registered type, disabled by default
+container.PreAllocateArgumentArrayOnRegister = true;
+
+// throw on register disposable transient, disabled by default
+container.PreventDisposableTransient = true;
 ```
 
-### [Register Types](Packages/com.quabug.one-shot-injection/OneShot.cs#L233)
+### [Register Types](Packages/com.quabug.one-shot-injection/OneShot.cs#L147)
 ``` c#
 container.RegisterInstance<int>(10).AsSelf(); // register instance of int
 container.Register<Foo>().Singleton().AsSelf(); // register a singleton of `Foo`
