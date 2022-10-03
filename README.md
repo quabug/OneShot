@@ -51,14 +51,14 @@ container.Register<Foo>().With(123, new Bar()).AsSelf(); // register with certai
 container.Register(typeof(Generic<>), (_, type) => Activator.CreateInstance(type)).As(typeof(Generic<>)); // register generic type
 ```
 
-### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L182)
+### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L88)
 ``` c#
 container.Resolve<int>();
 container.Resolve<IFoo>();
 container.Resolve<Generic<int>>();
 ```
 
-### [InjectAttribute](Packages/com.quabug.one-shot-injection/OneShot.cs#L39)
+### [InjectAttribute](Packages/com.quabug.one-shot-injection/OneShot.cs#L291)
 ``` c#
 class Foo
 {
@@ -76,7 +76,7 @@ var foo = container.Resolve<Foo>(); // instantial `Foo` by `Foo(int value)`
 container.InjectAll(foo); // inject its fields, properteis and methods
 ```
 
-### [Label](Packages/com.quabug.one-shot-injection/OneShot.cs#L45)
+### [Label](Packages/com.quabug.one-shot-injection/OneShot.cs#L298)
 ``` c#
 class Foo {}
 interface TypedLabelFoo : ILabel<Foo> {} // declare type-specific label, will throw on labeling other type
@@ -98,6 +98,3 @@ class Bar
 container.Register<Foo>().AsSelf(typeof(TypedLabel)); // register typed label foo
 container.Register<Bar>().With((123, typeof(AnyLabel<>)), (new Foo(), typeof(AnyLabel<>))).AsSelf(); // register additional-labeled instances
 ```
-
-### A Complex Use Case
-[GraphExt](https://github.com/quabug/GraphExt/tree/main/Packages/com.quabug.graph-ext/DI)
