@@ -358,5 +358,29 @@ namespace OneShot.Test
             Assert.That(instance.IntValue, Is.EqualTo(123));
             Assert.That(instance.FloatValue, Is.EqualTo(222.222f));
         }
+
+        [Test]
+        public void should_get_null_if_try_resolved_type_not_registered()
+        {
+            var container = new Container();
+            Assert.That(container.TryResolve<int>(), Is.Null);
+        }
+
+        [Test]
+        public void should_check_registered_of_a_type()
+        {
+            var container = new Container();
+            container.RegisterInstance(123).AsSelf();
+            Assert.That(container.IsRegisteredInHierarchy<int>(), Is.True);
+            Assert.That(container.IsRegisteredInHierarchy<float>(), Is.False);
+            Assert.That(container.IsRegistered<int>(), Is.True);
+            Assert.That(container.IsRegistered<float>(), Is.False);
+
+            var child = container.CreateChildContainer();
+            Assert.That(child.IsRegisteredInHierarchy<int>(), Is.True);
+            Assert.That(child.IsRegisteredInHierarchy<float>(), Is.False);
+            Assert.That(child.IsRegistered<int>(), Is.False);
+            Assert.That(child.IsRegistered<float>(), Is.False);
+        }
     }
 }
