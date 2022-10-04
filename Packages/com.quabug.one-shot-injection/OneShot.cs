@@ -44,8 +44,22 @@ namespace OneShot
         private ConcurrentBag<IDisposable> _disposableInstances = new ConcurrentBag<IDisposable>();
         private ConcurrentBag<Container> _children = new ConcurrentBag<Container>();
 
+        /// <summary>
+        /// enable or disable circular check
+        /// disable it to improve performance on type resolving.
+        /// consider disable it on performance critic part and enable it while debugging.
+        /// </summary>
         public bool EnableCircularCheck { get; set; } = true;
+
+        /// <summary>
+        /// pre-allocate arguments array of type constructor.
+        /// enable it to improve performance on resolving but also significant increase memory usage on register.
+        /// </summary>
         public bool PreAllocateArgumentArrayOnRegister { get; set; } = false;
+        
+        /// <summary>
+        /// https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines#disposable-transient-services-captured-by-container
+        /// </summary>
         public bool PreventDisposableTransient { get; set; } = false;
 
         #region creation
@@ -73,7 +87,6 @@ namespace OneShot
 
         #endregion
 
-        // TODO: remove container from parent?
         public void Dispose()
         {
             if (_children != null!) foreach (var child in _children) child.Dispose();
@@ -89,7 +102,7 @@ namespace OneShot
 
         public object Resolve(Type type, Type? label = null)
         {
-            var instance = ResolveImpl(type, label);
+            var instance = TryResolve(type, label);
             if (instance == null) throw new ArgumentException($"{type.Name} have not been registered yet");
             return instance;
         }
@@ -99,16 +112,16 @@ namespace OneShot
             return (T) Resolve(typeof(T), label);
         }
 
-        public IEnumerable<T> ResolveGroup<T>()
+        public object? TryResolve<T>(Type? label = null)
         {
-            return ResolveGroup(typeof(T)).Cast<T>();
+            return TryResolve(typeof(T), label);
         }
 
-        private object? ResolveImpl(Type type, Type? label)
+        public object? TryResolve(Type type, Type? label)
         {
             {
                 var creatorKey = label == null ? type : label.CreateLabelType(type);
-                var creator = FindFirstCreatorsInHierarchy(this, creatorKey);
+                var creator = FindFirstCreatorInHierarchy(creatorKey);
                 if (creator != null) return creator(this, type);
             }
 
@@ -129,11 +142,16 @@ namespace OneShot
             {
                 var generic = type.GetGenericTypeDefinition();
                 var creatorKey = label == null ? generic : label.CreateLabelType(generic);
-                var creator = FindFirstCreatorsInHierarchy(this, creatorKey);
+                var creator = FindFirstCreatorInHierarchy(creatorKey);
                 if (creator != null) return creator(this, type);
             }
 
             return null;
+        }
+
+        public IEnumerable<T> ResolveGroup<T>()
+        {
+            return ResolveGroup(typeof(T)).Cast<T>();
         }
 
         public IEnumerable<object> ResolveGroup(Type type)
@@ -200,6 +218,26 @@ namespace OneShot
             return new ResolverBuilder(this, instance.GetType(), (c, t) => instance, Lifetime.Singleton);
         }
 
+        public bool IsRegisteredInHierarchy(Type type)
+        {
+            return FindFirstCreatorInHierarchy(type) != null;
+        }
+
+        public bool IsRegisteredInHierarchy<T>()
+        {
+            return FindFirstCreatorInHierarchy(typeof(T)) != null;
+        }
+
+        public bool IsRegistered(Type type)
+        {
+            return FindFirstCreatorInThisContainer(type) != null;
+        }
+
+        public bool IsRegistered<T>()
+        {
+            return FindFirstCreatorInThisContainer(typeof(T)) != null;
+        }
+
         #endregion
 
         #region Call
@@ -244,7 +282,7 @@ namespace OneShot
             return ci;
         }
 
-        private static IEnumerable<ConcurrentStack<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
+        private static IEnumerable<IReadOnlyCollection<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
         {
             var current = container;
             while (current != null)
@@ -255,12 +293,18 @@ namespace OneShot
             }
         }
 
-        private static Func<Container, Type, object>? FindFirstCreatorsInHierarchy(Container container, Type type)
+        private Func<Container, Type, object>? FindFirstCreatorInThisContainer(Type type)
         {
-            var current = container;
+            return Resolvers.TryGetValue(type, out var creators) && creators.TryPeek(out var creator) ? creator : null;
+        }
+
+        private Func<Container, Type, object>? FindFirstCreatorInHierarchy(Type type)
+        {
+            var current = this;
             while (current != null)
             {
-                if (current.Resolvers.TryGetValue(type, out var creators) && creators.TryPeek(out var creator)) return creator;
+                var creator = current.FindFirstCreatorInThisContainer(type);
+                if (creator != null) return creator;
                 current = current.Parent;
             }
             return null;
@@ -269,7 +313,7 @@ namespace OneShot
         private object ResolveParameterInfo(ParameterInfo parameter, Type? label = null)
         {
             var parameterType = parameter.ParameterType;
-            var instance = ResolveImpl(parameterType, label);
+            var instance = TryResolve(parameterType, label);
             if (instance != null) return instance;
             return parameter.HasDefaultValue ? parameter.DefaultValue! : throw new ArgumentException($"cannot resolve parameter {parameter.Member.DeclaringType?.Name}.{parameter.Member.Name}.{parameter.Name}");
         }
