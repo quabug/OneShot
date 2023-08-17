@@ -41,8 +41,8 @@ namespace OneShot
         internal Container? Parent { get; private set; }
         internal ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>> Resolvers { get; private set; }
             = new ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>();
-        private ConcurrentBag<IDisposable> _disposableInstances = new ConcurrentBag<IDisposable>();
-        private ConcurrentBag<Container> _children = new ConcurrentBag<Container>();
+        private ConcurrentStack<IDisposable> _disposableInstances = new ConcurrentStack<IDisposable>();
+        private ConcurrentStack<Container> _children = new ConcurrentStack<Container>();
 
         /// <summary>
         /// enable or disable circular check
@@ -72,7 +72,7 @@ namespace OneShot
             EnableCircularCheck = parent.EnableCircularCheck;
             PreAllocateArgumentArrayOnRegister = parent.PreAllocateArgumentArrayOnRegister;
             PreventDisposableTransient = parent.PreventDisposableTransient;
-            parent._children.Add(this);
+            parent._children.Push(this);
         }
 
         public Container CreateChildContainer()
@@ -89,9 +89,9 @@ namespace OneShot
 
         public void Dispose()
         {
-            if (_children != null!) foreach (var child in _children) child.Dispose();
+            if (_children != null!) while (_children.TryPop(out var child)) child.Dispose();
             _children = null!;
-            if (_disposableInstances != null!) foreach (var instance in _disposableInstances) instance.Dispose();
+            if (_disposableInstances != null!) while (_disposableInstances.TryPop(out var instance)) instance.Dispose();
             _disposableInstances = null!;
             Parent = null;
             Resolvers?.Clear();
@@ -189,7 +189,7 @@ namespace OneShot
                     var arguments = preAllocatedArguments?.Value ?? new object[parameters.Length];
                     var args = resolveContainer.ResolveParameterInfos(parameters, labels, arguments);
                     var instance = newFunc(args);
-                    if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Add(disposable);
+                    if (instance is IDisposable disposable) resolveContainer._disposableInstances!.Push(disposable);
                     return instance;
                 }
                 finally
