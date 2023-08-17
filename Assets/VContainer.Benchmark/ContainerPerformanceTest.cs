@@ -14,10 +14,11 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveSingleton()
         {
-            var reflexContainer = new Reflex.Container("test");
-            reflexContainer.BindSingleton<ISingleton1, Singleton1>();
-            reflexContainer.BindSingleton<ISingleton2, Singleton2>();
-            reflexContainer.BindSingleton<ISingleton3, Singleton3>();
+            var reflexBuilder = new Reflex.Core.ContainerDescriptor("test");
+            reflexBuilder.AddSingleton(typeof(Singleton1), typeof(ISingleton1));
+            reflexBuilder.AddSingleton(typeof(Singleton2), typeof(ISingleton2));
+            reflexBuilder.AddSingleton(typeof(Singleton3), typeof(ISingleton3));
+            var reflexContainer = reflexBuilder.Build();
 
             Measure
                 .Method(() =>
@@ -74,10 +75,11 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveTransient()
         {
-            var reflexContainer = new Reflex.Container("test");
-            reflexContainer.BindTransient<ITransient1, Transient1>();
-            reflexContainer.BindTransient<ITransient2, Transient2>();
-            reflexContainer.BindTransient<ITransient3, Transient3>();
+            var reflexBuilder = new Reflex.Core.ContainerDescriptor("test");
+            reflexBuilder.AddTransient(typeof(Transient1), typeof(ITransient1));
+            reflexBuilder.AddTransient(typeof(Transient2), typeof(ITransient2));
+            reflexBuilder.AddTransient(typeof(Transient3), typeof(ITransient3));
+            var reflexContainer = reflexBuilder.Build();
 
             Measure
                 .Method(() =>
@@ -134,16 +136,17 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveCombined()
         {
-            var reflexContainer = new Reflex.Container("test");
-            reflexContainer.BindSingleton<ISingleton1, Singleton1>();
-            reflexContainer.BindSingleton<ISingleton2, Singleton2>();
-            reflexContainer.BindSingleton<ISingleton3, Singleton3>();
-            reflexContainer.BindTransient<ITransient1, Transient1>();
-            reflexContainer.BindTransient<ITransient2, Transient2>();
-            reflexContainer.BindTransient<ITransient3, Transient3>();
-            reflexContainer.BindTransient<ICombined1, Combined1>();
-            reflexContainer.BindTransient<ICombined2, Combined2>();
-            reflexContainer.BindTransient<ICombined3, Combined3>();
+            var reflexBuilder = new Reflex.Core.ContainerDescriptor("test");
+            reflexBuilder.AddSingleton(typeof(Singleton1), typeof(ISingleton1));
+            reflexBuilder.AddSingleton(typeof(Singleton2), typeof(ISingleton2));
+            reflexBuilder.AddSingleton(typeof(Singleton3), typeof(ISingleton3));
+            reflexBuilder.AddTransient(typeof(Transient1), typeof(ITransient1));
+            reflexBuilder.AddTransient(typeof(Transient2), typeof(ITransient2));
+            reflexBuilder.AddTransient(typeof(Transient3), typeof(ITransient3));
+            reflexBuilder.AddTransient(typeof(Combined1), typeof(ICombined1));
+            reflexBuilder.AddTransient(typeof(Combined2), typeof(ICombined2));
+            reflexBuilder.AddTransient(typeof(Combined3), typeof(ICombined3));
+            var reflexContainer = reflexBuilder.Build();
 
             Measure
                 .Method(() =>
@@ -213,19 +216,20 @@ namespace VvContainer.Benchmark
         [Performance]
         public void ResolveComplex()
         {
-            var reflexContainer = new Reflex.Container("test");
-            reflexContainer.BindSingleton<IFirstService, FirstService>();
-            reflexContainer.BindSingleton<ISecondService, SecondService>();
-            reflexContainer.BindSingleton<IThirdService, ThirdService>();
-            reflexContainer.BindTransient<ISubObjectA, SubObjectA>();
-            reflexContainer.BindTransient<ISubObjectB, SubObjectB>();
-            reflexContainer.BindTransient<ISubObjectC, SubObjectC>();
-            reflexContainer.BindTransient<IComplex1, Complex1>();
-            reflexContainer.BindTransient<IComplex2, Complex2>();
-            reflexContainer.BindTransient<IComplex3, Complex3>();
-            reflexContainer.BindTransient<ISubObjectOne, SubObjectOne>();
-            reflexContainer.BindTransient<ISubObjectTwo, SubObjectTwo>();
-            reflexContainer.BindTransient<ISubObjectThree, SubObjectThree>();
+            var reflexBuilder = new Reflex.Core.ContainerDescriptor("test");
+            reflexBuilder.AddSingleton(typeof(FirstService), typeof(IFirstService));
+            reflexBuilder.AddSingleton(typeof(SecondService), typeof(ISecondService));
+            reflexBuilder.AddSingleton(typeof(ThirdService), typeof(IThirdService));
+            reflexBuilder.AddTransient(typeof(SubObjectA), typeof(ISubObjectA));
+            reflexBuilder.AddTransient(typeof(SubObjectB), typeof(ISubObjectB));
+            reflexBuilder.AddTransient(typeof(SubObjectC), typeof(ISubObjectC));
+            reflexBuilder.AddTransient(typeof(Complex1), typeof(IComplex1));
+            reflexBuilder.AddTransient(typeof(Complex2), typeof(IComplex2));
+            reflexBuilder.AddTransient(typeof(Complex3), typeof(IComplex3));
+            reflexBuilder.AddTransient(typeof(SubObjectOne), typeof(ISubObjectOne));
+            reflexBuilder.AddTransient(typeof(SubObjectTwo), typeof(ISubObjectTwo));
+            reflexBuilder.AddTransient(typeof(SubObjectThree), typeof(ISubObjectThree));
+            var reflexContainer = reflexBuilder.Build();
 
             Measure
                 .Method(() =>
@@ -338,19 +342,20 @@ namespace VvContainer.Benchmark
                 {
                     for (var i = 0; i < N; i++)
                     {
-                        var reflexContainer = new Reflex.Container("test");
-                        reflexContainer.BindSingleton<IFirstService, FirstService>();
-                        reflexContainer.BindSingleton<ISecondService, SecondService>();
-                        reflexContainer.BindSingleton<IThirdService, ThirdService>();
-                        reflexContainer.BindTransient<ISubObjectA, SubObjectA>();
-                        reflexContainer.BindTransient<ISubObjectB, SubObjectB>();
-                        reflexContainer.BindTransient<ISubObjectC, SubObjectC>();
-                        reflexContainer.BindTransient<IComplex1, Complex1>();
-                        reflexContainer.BindTransient<IComplex2, Complex2>();
-                        reflexContainer.BindTransient<IComplex3, Complex3>();
-                        reflexContainer.BindTransient<ISubObjectOne, SubObjectOne>();
-                        reflexContainer.BindTransient<ISubObjectTwo, SubObjectTwo>();
-                        reflexContainer.BindTransient<ISubObjectThree, SubObjectThree>();
+                        var reflexBuilder = new Reflex.Core.ContainerDescriptor("test");
+                        reflexBuilder.AddSingleton(typeof(FirstService), typeof(IFirstService));
+                        reflexBuilder.AddSingleton(typeof(SecondService), typeof(ISecondService));
+                        reflexBuilder.AddSingleton(typeof(ThirdService), typeof(IThirdService));
+                        reflexBuilder.AddTransient(typeof(SubObjectA), typeof(ISubObjectA));
+                        reflexBuilder.AddTransient(typeof(SubObjectB), typeof(ISubObjectB));
+                        reflexBuilder.AddTransient(typeof(SubObjectC), typeof(ISubObjectC));
+                        reflexBuilder.AddTransient(typeof(Complex1), typeof(IComplex1));
+                        reflexBuilder.AddTransient(typeof(Complex2), typeof(IComplex2));
+                        reflexBuilder.AddTransient(typeof(Complex3), typeof(IComplex3));
+                        reflexBuilder.AddTransient(typeof(SubObjectOne), typeof(ISubObjectOne));
+                        reflexBuilder.AddTransient(typeof(SubObjectTwo), typeof(ISubObjectTwo));
+                        reflexBuilder.AddTransient(typeof(SubObjectThree), typeof(ISubObjectThree));
+                        _ = reflexBuilder.Build();
                     }
                 })
                 .SampleGroup("Reflex")
