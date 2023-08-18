@@ -700,4 +700,26 @@ namespace OneShot
             return (fi.SetValue, label);
         }
     }
+
+    public static class GenericExtension
+    {
+        public static WithBuilder RegisterGeneric(this Container container, Type genericType, MethodInfo creator)
+        {
+            if (genericType == null) throw new ArgumentNullException(nameof(genericType));
+            if (creator == null) throw new ArgumentNullException(nameof(creator));
+            if (!genericType.IsGenericType) throw new ArgumentException($"{genericType.FullName} is not a generic type", nameof(genericType));
+            if (!creator.IsStatic) throw new ArgumentException($"{creator.Name} is not static", nameof(creator));
+            if (!creator.ReturnType.IsGenericType || creator.ReturnType.GetGenericTypeDefinition() != genericType) throw new ArgumentException($"the return type ({creator.ReturnType}) of {creator.Name} require to be the same as {nameof(genericType)} ({genericType})", nameof(creator));
+            // TODO: check constraint of generic argument
+            if (creator.GetGenericArguments().Length != genericType.GetGenericArguments().Length) throw new ArgumentException($"the method has different generic arguments: actual={creator.GetGenericArguments().Length} expected={genericType.GetGenericArguments()}", nameof(creator));
+            var parameters = creator.GetParameters();
+            if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Container) || parameters[1].ParameterType != typeof(Type)) throw new ArgumentException("creator must have exact parameter of (Container, Type)", nameof(creator)); 
+            return container.Register(genericType, GetInstanceCreator(creator));
+
+            static Func<Container, Type, object> GetInstanceCreator(MethodInfo creator)
+            {
+                return (container, type) => creator.MakeGenericMethod(type.GetGenericArguments()).Invoke(null, new object[] { container, type });
+            }
+        }
+    }
 }
