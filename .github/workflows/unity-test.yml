@@ -15,8 +15,8 @@ jobs:
           - Mono2x
           - IL2CPP
     steps:
-      - uses: actions/checkout@master
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
         with:
           path: |
             Library
@@ -31,7 +31,7 @@ jobs:
           projectPath: .
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           coverageOptions: 'generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;pathFilters:+**/Packages/**'
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         if: always()
         with:
           name: Coverage results for ${{ matrix.backend }}
