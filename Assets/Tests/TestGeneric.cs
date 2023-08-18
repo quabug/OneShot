@@ -53,7 +53,7 @@ namespace OneShot.Test
         public void should_register_and_resolve_generic_type_by_method_name()
         {
             var container = new Container();
-            var creator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var creator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic);
             container.RegisterGeneric(typeof(Lazy<>), creator).With(123).AsSelf();
             Assert.That(container.Resolve<Lazy<int>>().Value, Is.EqualTo(123));
         }
@@ -76,7 +76,7 @@ namespace OneShot.Test
         public void should_register_and_resolve_generic_with_multiple_type_parameters_by_method_name()
         {
             var container = new Container();
-            var creator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var creator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic);
             container.RegisterGeneric(typeof(Generic<,>), creator).AsSelf();
             var instance = container.Resolve<Generic<int, float>>();
         }
@@ -87,17 +87,17 @@ namespace OneShot.Test
             var container = new Container();
             Assert.Throws<ArgumentNullException>(() => container.RegisterGeneric(typeof(Generic<,>), null).AsSelf());
 
-            var lazyCreator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var lazyCreator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic);
             Assert.Throws<ArgumentException>(() => container.RegisterGeneric(typeof(Generic<>), lazyCreator).AsSelf());
             Assert.Throws<ArgumentException>(() => container.RegisterGeneric(typeof(Generic<,>), lazyCreator).AsSelf());
 
-            var genericCreator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var genericCreator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic);
             Assert.Throws<ArgumentException>(() => container.RegisterGeneric(typeof(Generic<>), genericCreator).AsSelf());
 
-            var invalidReturnCreator = GetType().GetMethod(nameof(InvalidReturnCreator), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var invalidReturnCreator = GetType().GetMethod(nameof(InvalidReturnCreator), BindingFlags.Static | BindingFlags.NonPublic);
             Assert.Throws<ArgumentException>(() => container.RegisterGeneric(typeof(Generic<,>), invalidReturnCreator).AsSelf());
 
-            var invalidParameterCreator = GetType().GetMethod(nameof(InvalidParameterCreator), BindingFlags.Static | BindingFlags.NonPublic)!;
+            var invalidParameterCreator = GetType().GetMethod(nameof(InvalidParameterCreator), BindingFlags.Static | BindingFlags.NonPublic);
             Assert.Throws<ArgumentException>(() => container.RegisterGeneric(typeof(Generic<,>), invalidParameterCreator).AsSelf());
         }
     }
