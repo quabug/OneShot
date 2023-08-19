@@ -63,7 +63,7 @@ container.Resolve<Generic<int>>();
 class Foo
 {
     public Foo() {}
-    // mark a constructor to use on instantialize
+    // mark a constructor to use on instantiate
     [Inject] public Foo(int value) {}
 
     [Inject] int IntValue; // field able to inject
@@ -87,8 +87,8 @@ class Bar
     public Bar(
         Foo foo, // un-labeled type
         [Inject(typeof(TypedLabelFoo))] Foo labeledFoo, // labeled type with type-specific label
-        [Inject(AnyLabel<>)] Foo anyLabeledFoo, // labeled type
-        [Inject(typeof(AnyLabel<>)] int anyLabeledInt  // labeled type
+        [Inject(typeof(AnyLabel<>))] Foo anyLabeledFoo, // labeled type
+        [Inject(typeof(AnyLabel<>))] int anyLabeledInt  // labeled type
     ) {}
     
     [Inject(typeof(AnyLabel<>))] Foo LabeledProperty { get; private set; }
