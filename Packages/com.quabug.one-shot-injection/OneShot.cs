@@ -1,6 +1,6 @@
 // MIT License
 
-// Copyright (c) 2022 quabug
+// Copyright (c) 2023 quabug
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,8 +20,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#nullable enable
-
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -39,41 +37,28 @@ namespace OneShot
     public readonly struct Resolver : IEquatable<Resolver>
     {
         public Func<Container, Type, object> Func { get; }
-        public Lifetime Lifetime { get; }
+        public ResolverLifetime Lifetime { get; }
         public bool IsValid => Func != null;
 
-        public Resolver(Func<Container, Type, object> func, Lifetime lifetime)
+        public Resolver(Func<Container, Type, object> func, ResolverLifetime lifetime)
         {
             Func = func;
             Lifetime = lifetime;
         }
 
-        public bool Equals(Resolver other)
-        {
-            return Func.Equals(other.Func) && Lifetime == other.Lifetime;
-        }
-
-        public override bool Equals(object? obj)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                return (Func.GetHashCode() * 397) ^ (int)Lifetime;
-            }
-        }
+        public bool Equals(Resolver other) => Func.Equals(other.Func) && Lifetime == other.Lifetime;
+        public override bool Equals(object? obj) => obj is Resolver other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Func, (int)Lifetime);
+        public static bool operator ==(in Resolver left, in Resolver right) => left.Equals(right);
+        public static bool operator !=(in Resolver left, in Resolver right) => !(left == right);
     }
 
     public sealed class Container : IDisposable
     {
         internal Container? Parent { get; private set; }
-        internal ConcurrentDictionary<Type, ConcurrentStack<Resolver>> Resolvers { get; private set; }
-            = new ConcurrentDictionary<Type, ConcurrentStack<Resolver>>();
-        private ConcurrentStack<IDisposable> _disposableInstances = new ConcurrentStack<IDisposable>();
-        private ConcurrentStack<Container> _children = new ConcurrentStack<Container>();
+        internal ConcurrentDictionary<Type, ConcurrentStack<Resolver>> Resolvers { get; private set; } = new();
+        private ConcurrentStack<IDisposable> _disposableInstances = new();
+        private ConcurrentStack<Container> _children = new();
 
         /// <summary>
         /// enable or disable circular check
@@ -86,16 +71,16 @@ namespace OneShot
         /// pre-allocate arguments array of type constructor.
         /// enable it to improve performance on resolving but also significant increase memory usage on register.
         /// </summary>
-        public bool PreAllocateArgumentArrayOnRegister { get; set; } = false;
-        
+        public bool PreAllocateArgumentArrayOnRegister { get; set; }
+
         /// <summary>
         /// https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines#disposable-transient-services-captured-by-container
         /// </summary>
-        public bool PreventDisposableTransient { get; set; } = false;
+        public bool PreventDisposableTransient { get; set; }
 
         #region creation
 
-        public Container() {}
+        public Container() { }
 
         public Container(Container parent)
         {
@@ -140,7 +125,7 @@ namespace OneShot
 
         public T Resolve<T>(Type? label = null)
         {
-            return (T) Resolve(typeof(T), label);
+            return (T)Resolve(typeof(T), label);
         }
 
         public object? TryResolve<T>(Type? label = null)
@@ -206,9 +191,14 @@ namespace OneShot
         {
             var ci = FindConstructorInfo(type);
             var (newFunc, parameters, labels) = ci.Compile();
-            var preAllocatedArguments = PreAllocateArgumentArrayOnRegister
-                ? new ThreadLocal<object[]>(() => new object[parameters.Length])
-                : null;
+            ThreadLocal<object[]>? preAllocatedArguments = null;
+            if (PreAllocateArgumentArrayOnRegister)
+            {
+#pragma warning disable CA2000 // dispose arguments on disposing phase of container
+                preAllocatedArguments = new ThreadLocal<object[]>(() => new object[parameters.Length]);
+#pragma warning restore CA2000
+                _disposableInstances.Push(preAllocatedArguments);
+            }
             return Register(type, CreateInstance);
 
             object CreateInstance(Container resolveContainer, Type _)
@@ -243,10 +233,10 @@ namespace OneShot
         }
 
         [MustUseReturnValue]
-        public ResolverBuilder RegisterInstance<T>([NotNull] T instance)
+        public ResolverBuilder RegisterInstance<T>(T instance)
         {
             if (instance == null) throw new ArgumentNullException(nameof(instance));
-            return new ResolverBuilder(this, instance.GetType(), (c, t) => instance, Lifetime.Singleton);
+            return new ResolverBuilder(this, instance.GetType(), (c, t) => instance, ResolverLifetime.Singleton);
         }
 
         public bool IsRegisteredInHierarchy(Type type)
@@ -296,9 +286,9 @@ namespace OneShot
             return FindConstructorInfo(type).Invoke(this);
         }
 
-        [NotNull] public T Instantiate<T>()
+        public T Instantiate<T>()
         {
-            return (T) Instantiate(typeof(T));
+            return (T)Instantiate(typeof(T));
         }
 
         #endregion
@@ -362,6 +352,7 @@ namespace OneShot
     }
 
     [UsedImplicitly]
+    [MeansImplicitUse(ImplicitUseKindFlags.Assign)]
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class InjectAttribute : Attribute
     {
@@ -370,17 +361,19 @@ namespace OneShot
     }
 
     // ReSharper disable once UnusedTypeParameter
-    public interface ILabel<T> {}
+#pragma warning disable CA1040
+    public interface ILabel<T> { }
+#pragma warning restore CA1040
 
-    public enum Lifetime { Transient, Singleton, Scope }
+    public enum ResolverLifetime { Transient, Singleton, Scoped }
 
     public class ResolverBuilder
     {
-        internal readonly Container Container;
-        internal readonly Resolver Resolver;
-        internal readonly Type ConcreteType;
+        internal Container Container { get; }
+        internal Resolver Resolver { get; }
+        internal Type ConcreteType { get; }
 
-        internal ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator, Lifetime lifetime)
+        internal ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator, ResolverLifetime lifetime)
         {
             Container = container;
             Resolver = new Resolver(creator, lifetime);
@@ -389,7 +382,7 @@ namespace OneShot
 
         public ResolverBuilder As(Type contractType, Type? label = null)
         {
-            if (Container.PreventDisposableTransient && Resolver.Lifetime == Lifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
+            if (Container.PreventDisposableTransient && Resolver.Lifetime == ResolverLifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
                 throw new ArgumentException($"disposable type {ConcreteType} cannot register as transient. this check can be disabled by set {nameof(OneShot.Container.PreventDisposableTransient)} to false.");
             if (!contractType.IsAssignableFrom(ConcreteType)) throw new ArgumentException($"concreteType({ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
             if (label != null) contractType = label.CreateLabelType(contractType);
@@ -439,7 +432,7 @@ namespace OneShot
     public class LifetimeBuilder : ResolverBuilder
     {
         internal LifetimeBuilder(Container container, Func<Container, Type, object> creator, Type concreteType)
-            : base(container, concreteType, creator, Lifetime.Transient) {}
+            : base(container, concreteType, creator, ResolverLifetime.Transient) { }
 
         [MustUseReturnValue]
         public ResolverBuilder Transient()
@@ -451,20 +444,26 @@ namespace OneShot
         public ResolverBuilder Singleton()
         {
             var lazyValue = new Lazy<object>(() => Resolver.Func(Container, ConcreteType));
-            return new ResolverBuilder(Container, ConcreteType, (container, contractType) => lazyValue.Value, Lifetime.Singleton);
+            return new ResolverBuilder(Container, ConcreteType, (container, contractType) => lazyValue.Value, ResolverLifetime.Singleton);
+        }
+
+        [MustUseReturnValue, Obsolete("use Scoped instead")]
+        public ResolverBuilder Scope()
+        {
+            return Scoped();
         }
 
         [MustUseReturnValue]
-        public ResolverBuilder Scope()
+        public ResolverBuilder Scoped()
         {
             var lazyValue = new Lazy<object>(() => Resolver.Func(Container, ConcreteType));
-            return new ResolverBuilder(Container, ConcreteType, ResolveScopeInstance, Lifetime.Scope);
+            return new ResolverBuilder(Container, ConcreteType, ResolveScopedInstance, ResolverLifetime.Scoped);
 
-            object ResolveScopeInstance(Container container, Type contractType)
+            object ResolveScopedInstance(Container container, Type contractType)
             {
                 if (container == Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(ConcreteType, Resolver.Func).Scope().As(contractType);
+                container.Register(ConcreteType, Resolver.Func).Scoped().As(contractType);
                 return container.Resolve(contractType);
             }
         }
@@ -472,7 +471,7 @@ namespace OneShot
 
     public class WithBuilder : LifetimeBuilder
     {
-        public WithBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, creator, concreteType) {}
+        public WithBuilder(Container container, Func<Container, Type, object> creator, Type concreteType) : base(container, creator, concreteType) { }
 
         [MustUseReturnValue]
         public LifetimeBuilder With(params object[] instances)
@@ -488,29 +487,31 @@ namespace OneShot
 
         private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type? label)> labeledInstances)
         {
-            var container = Container.CreateChildContainer();
-            foreach (var (instance, label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
+#pragma warning disable CA2000 // manually dispose container when the parent container been disposing
+            Container container = Container.CreateChildContainer();
+#pragma warning restore CA2000
+            foreach ((object instance, Type? label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
             return new LifetimeBuilder(Container, (_, contractType) => Resolver.Func(container, contractType), ConcreteType);
         }
     }
 
     public static class InjectExtension
     {
-        private static readonly Dictionary<Type, TypeInjector> _INJECTORS = new Dictionary<Type, TypeInjector>();
+        private static readonly Dictionary<Type, TypeInjector> s_injectors = new();
 
         public static void InjectAll(this Container container, object instance, Type instanceType)
         {
-            _INJECTORS.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
+            s_injectors.GetOrCreate(instanceType, () => new TypeInjector(instanceType)).InjectAll(container, instance);
         }
 
-        public static void InjectAll<T>(this Container container, [NotNull] T instance)
+        public static void InjectAll<T>(this Container container, T instance)
         {
             if (instance == null) throw new ArgumentNullException(nameof(instance));
             InjectAll(container, instance, instance.GetType());
         }
     }
 
-    class TypeInjector
+    sealed class TypeInjector
     {
         private readonly Type _type;
         private readonly List<FieldInfo> _fields = new List<FieldInfo>();
@@ -581,17 +582,17 @@ namespace OneShot
 
     internal static class DictionaryExtension
     {
-        [NotNull] public static TValue GetOrCreate<TKey, TValue>(
+        public static TValue GetOrCreate<TKey, TValue>(
             this Dictionary<TKey, TValue> dictionary,
-            [NotNull] TKey key
+            TKey key
         ) where TValue : new()
         {
             return dictionary.GetOrCreate(key, () => new TValue());
         }
 
-        [NotNull] public static TValue GetOrCreate<TKey, TValue>(
+        public static TValue GetOrCreate<TKey, TValue>(
             this Dictionary<TKey, TValue> dictionary,
-            [NotNull] TKey key,
+            TKey key,
             Func<TValue> newValue
         )
         {
@@ -607,25 +608,25 @@ namespace OneShot
     [Serializable]
     public class CircularDependencyException : Exception
     {
-        public CircularDependencyException() {}
-        public CircularDependencyException(string message) : base(message) {}
-        public CircularDependencyException(string message, Exception inner) : base(message, inner) {}
-        protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) {}
+        public CircularDependencyException() { }
+        public CircularDependencyException(string message) : base(message) { }
+        public CircularDependencyException(string message, Exception inner) : base(message, inner) { }
+        protected CircularDependencyException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
     static class CircularCheck
     {
-        private static ThreadLocal<Stack<Type>> _CIRCULAR_CHECK_SET = new ThreadLocal<Stack<Type>>(() => new Stack<Type>());
+        private static readonly ThreadLocal<Stack<Type>> s_circularCheckSet = new(() => new Stack<Type>());
 
         public static void Begin(Type type)
         {
-            if (_CIRCULAR_CHECK_SET.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
-            _CIRCULAR_CHECK_SET.Value.Push(type);
+            if (s_circularCheckSet.Value.Contains(type)) throw new CircularDependencyException($"circular dependency on {type.Name}");
+            s_circularCheckSet.Value.Push(type);
         }
 
         public static void End()
         {
-            _CIRCULAR_CHECK_SET.Value.Pop();
+            s_circularCheckSet.Value.Pop();
         }
     }
 
@@ -646,12 +647,11 @@ namespace OneShot
 
     static class ConstructorInfoCache
     {
-        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])> _COMPILED =
-            new ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])>();
+        private static readonly ConcurrentDictionary<ConstructorInfo, (Func<object[], object>, ParameterInfo[], Type?[])> s_compiled = new();
 
         public static (Func<object[], object> newFunc, ParameterInfo[] parameters, Type?[] labels) Compile(this ConstructorInfo ci)
         {
-            if (_COMPILED.TryGetValue(ci, out var t)) return t;
+            if (s_compiled.TryGetValue(ci, out var t)) return t;
             var parameters = ci.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
 #if ENABLE_IL2CPP
@@ -664,9 +664,9 @@ namespace OneShot
             ).Cast<Expression>().ToArray();
             var @new = Expression.New(ci, args);
             var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
-            var func = (Func<object[], object>) lambda.Compile();
+            var func = (Func<object[], object>)lambda.Compile();
 #endif
-            _COMPILED.TryAdd(ci, (func, parameters, labels));
+            s_compiled.TryAdd(ci, (func, parameters, labels));
             return (func, parameters, labels);
         }
 
@@ -681,15 +681,14 @@ namespace OneShot
 
     static class MethodInfoCache
     {
-        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> _COMPILED =
-            new ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])>();
+        private static readonly ConcurrentDictionary<MethodInfo, (Func<object, object[], object>, ParameterInfo[], Type?[])> s_compiled = new();
 
         public static (Func<object, object[], object> call, ParameterInfo[] parameters, Type?[] labels) Compile(this MethodInfo mi)
         {
-            if (_COMPILED.TryGetValue(mi, out var t)) return t;
+            if (s_compiled.TryGetValue(mi, out var t)) return t;
             var parameters = mi.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
-            _COMPILED.TryAdd(mi, (mi.Invoke, parameters, labels));
+            s_compiled.TryAdd(mi, (mi.Invoke, parameters, labels));
             return (mi.Invoke, parameters, labels);
         }
 
@@ -704,28 +703,26 @@ namespace OneShot
 
     static class PropertyInfoCache
     {
-        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> _COMPILED =
-            new ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)>();
+        private static readonly ConcurrentDictionary<PropertyInfo, (Action<object, object>, Type?)> s_compiled = new();
 
         public static (Action<object, object> setValue, Type? label) Compile(this PropertyInfo pi)
         {
-            if (_COMPILED.TryGetValue(pi, out var t)) return t;
+            if (s_compiled.TryGetValue(pi, out var t)) return t;
             var label = pi.GetCustomAttribute<InjectAttribute>()?.Label;
-            _COMPILED.TryAdd(pi, (pi.SetValue, label));
+            s_compiled.TryAdd(pi, (pi.SetValue, label));
             return (pi.SetValue, label);
         }
     }
 
     static class FieldInfoCache
     {
-        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> _COMPILED =
-            new ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)>();
+        private static readonly ConcurrentDictionary<FieldInfo, (Action<object, object>, Type?)> s_compiled = new();
 
         public static (Action<object, object> setValue, Type? label) Compile(this FieldInfo fi)
         {
-            if (_COMPILED.TryGetValue(fi, out var t)) return t;
+            if (s_compiled.TryGetValue(fi, out var t)) return t;
             var label = fi.GetCustomAttribute<InjectAttribute>()?.Label;
-            _COMPILED.TryAdd(fi, (fi.SetValue, label));
+            s_compiled.TryAdd(fi, (fi.SetValue, label));
             return (fi.SetValue, label);
         }
     }
@@ -742,7 +739,7 @@ namespace OneShot
             // TODO: check constraint of generic argument
             if (creator.GetGenericArguments().Length != genericType.GetGenericArguments().Length) throw new ArgumentException($"the method has different generic arguments: actual={creator.GetGenericArguments().Length} expected={genericType.GetGenericArguments()}", nameof(creator));
             var parameters = creator.GetParameters();
-            if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Container) || parameters[1].ParameterType != typeof(Type)) throw new ArgumentException("creator must have exact parameter of (Container, Type)", nameof(creator)); 
+            if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Container) || parameters[1].ParameterType != typeof(Type)) throw new ArgumentException("creator must have exact parameter of (Container, Type)", nameof(creator));
             return container.Register(genericType, GetInstanceCreator(creator));
 
             static Func<Container, Type, object> GetInstanceCreator(MethodInfo creator)

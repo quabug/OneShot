@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using NUnit.Framework;
 
 namespace OneShot.Test
@@ -117,7 +116,7 @@ namespace OneShot.Test
             Assert.Catch<Exception>(() => container.Resolve<TypeA>());
             Assert.Catch<Exception>(() => container.Resolve<DefaultConstructor>());
         }
-        
+
         class Injected
         {
             [Inject] public int Int;
@@ -300,7 +299,7 @@ namespace OneShot.Test
         {
             [Inject] void Inject(InterfaceA _) {}
         }
-        
+
         [Test]
         public void should_able_to_inject_without_resolve()
         {
@@ -313,7 +312,7 @@ namespace OneShot.Test
         {
             [Inject] public void Inject(TypeA _) {}
         }
-        
+
         [Test]
         public void should_inject_method_to_same_instance_repeatedly()
         {
@@ -324,7 +323,7 @@ namespace OneShot.Test
             container.InjectAll(instance);
             container.InjectAll(instance);
         }
-        
+
         class TypeAA : TypeA {}
         class TypeAAA : TypeAA {}
 
@@ -336,7 +335,7 @@ namespace OneShot.Test
             Assert.That(container.Resolve<TypeAA>(), Is.InstanceOf<TypeAAA>());
             Assert.That(container.Resolve<TypeA>(), Is.InstanceOf<TypeAAA>());
         }
-        
+
         class InjectFloat
         {
             [Inject] public float FloatValue;
@@ -346,7 +345,7 @@ namespace OneShot.Test
         {
             [Inject] public int IntValue;
         }
-        
+
         [Test]
         public void should_inject_all_for_instance_by_contract_type()
         {

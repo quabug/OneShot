@@ -10,7 +10,7 @@ public class FooInstaller : MonoBehaviour, IInstaller
         container.RegisterInstance(123f).AsSelf();
         container.Register<Foo>().Transient().AsSelf();
         container.Register<Foo>().Singleton().AsSelf();
-        container.Register<Foo>().Scope().AsSelf();
-        container.Register<Foo>().Scope().AsSelf();
+        container.Register<Foo>().Scoped().AsSelf();
+        container.Register<Foo>().Scoped().AsSelf();
     }
 }

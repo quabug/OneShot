@@ -6,7 +6,7 @@ namespace OneShot.Test
     {
         interface InterfaceA {}
         class TypeA : InterfaceA {}
-        
+
         class Foo
         {
             public int A;
@@ -20,7 +20,7 @@ namespace OneShot.Test
                 C = c;
             }
         }
-        
+
         [Test]
         public void should_create_singleton_instance_with_additional_parameters()
         {
@@ -33,7 +33,7 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_singleton_instance_with_partial_additional_parameters()
         {
@@ -47,7 +47,7 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_singleton_instance_with_partial_and_override_additional_parameters()
         {
@@ -62,7 +62,7 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_transient_instance_with_additional_parameters()
         {
@@ -75,7 +75,7 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.Not.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_transient_instance_with_partial_additional_parameters()
         {
@@ -89,7 +89,7 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.Not.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_transient_instance_with_partial_and_override_additional_parameters()
         {
@@ -104,13 +104,13 @@ namespace OneShot.Test
             Assert.That(instance.C, Is.EqualTo(typeA));
             Assert.That(container.Resolve<Foo>(), Is.Not.EqualTo(container.Resolve<Foo>()));
         }
-        
+
         [Test]
         public void should_create_scoped_instance_with_additional_parameters()
         {
             var container = new Container();
             var typeA = new TypeA();
-            container.Register<Foo>().With(typeA, 1, 123f).Scope().AsSelf();
+            container.Register<Foo>().With(typeA, 1, 123f).Scoped().AsSelf();
             var instance = container.Resolve<Foo>();
             Assert.That(instance.A, Is.EqualTo(1));
             Assert.That(instance.B, Is.EqualTo(123));
@@ -123,13 +123,13 @@ namespace OneShot.Test
             Assert.That(scopedFoo.C, Is.EqualTo(typeA));
             Assert.That(instance, Is.Not.EqualTo(scopedFoo));
         }
-        
+
         [Test]
         public void should_create_scoped_instance_with_partial_additional_parameters()
         {
             var container = new Container();
             container.Register<TypeA>().Singleton().AsInterfaces();
-            container.Register<Foo>().With(1, 123f).Scope().AsSelf();
+            container.Register<Foo>().With(1, 123f).Scoped().AsSelf();
             var typeA = container.Resolve<InterfaceA>();
             var instance = container.Resolve<Foo>();
             Assert.That(instance.A, Is.EqualTo(1));
@@ -143,7 +143,7 @@ namespace OneShot.Test
             Assert.That(scopedFoo.C, Is.EqualTo(typeA));
             Assert.That(instance, Is.Not.EqualTo(scopedFoo));
         }
-        
+
         [Test]
         public void should_create_scoped_instance_with_partial_and_override_additional_parameters()
         {
@@ -151,8 +151,8 @@ namespace OneShot.Test
             container.RegisterInstance(100).AsSelf();
             container.RegisterInstance(666f).AsSelf();
             container.Register<TypeA>().Singleton().AsInterfaces();
-            container.Register<Foo>().With(1, 123f).Scope().AsSelf();
-            
+            container.Register<Foo>().With(1, 123f).Scoped().AsSelf();
+
             var typeA = container.Resolve<InterfaceA>();
             var instance = container.Resolve<Foo>();
             Assert.That(instance.A, Is.EqualTo(1));

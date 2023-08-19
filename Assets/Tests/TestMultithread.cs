@@ -31,7 +31,7 @@ namespace OneShot.Test
         //     container.Register<CDEF>().AsSelf().AsBases().AsInterfaces();
         //     container.Resolve<CDEF>();
         // }
-        
+
         [Test]
         public void should_able_to_register_and_resolve_on_different_thread()
         {
@@ -50,7 +50,7 @@ namespace OneShot.Test
                 Console.WriteLine($"remained {Interlocked.Read(ref _threadCount)}");
             }
         }
-        
+
         void Run(object state)
         {
             try
@@ -68,14 +68,14 @@ namespace OneShot.Test
                     var type = _types[rnd.Next(_types.Length)];
                     switch (rnd.Next(3))
                     {
-                        case 0: 
+                        case 0:
                             container.Register(type).Transient().AsSelf().AsBases().AsInterfaces();
                             break;
                         case 1:
                             container.Register(type).Singleton().AsSelf().AsBases().AsInterfaces();
                             break;
                         case 2:
-                            container.Register(type).Scope().AsSelf().AsBases().AsInterfaces();
+                            container.Register(type).Scoped().AsSelf().AsBases().AsInterfaces();
                             break;
                     }
                     Thread.Sleep(rnd.Next(0, 100));
@@ -100,7 +100,7 @@ namespace OneShot.Test
                     }
                     Thread.Sleep(rnd.Next(0, 100));
                 }
-                
+
                 if (shouldCreateContainer) container.Dispose();
             }
             finally
@@ -109,7 +109,7 @@ namespace OneShot.Test
                 Console.WriteLine($"{Thread.CurrentThread.Name} count={count}");
             }
         }
-        
+
         interface IA {}
         interface IB {}
         interface IC {}
@@ -130,8 +130,8 @@ namespace OneShot.Test
                 if (!(b is B)) throw new ApplicationException();
             }
         }
-        
-        class ABC 
+
+        class ABC
         {
             public ABC(A a, B b, C c)
             {
@@ -140,8 +140,8 @@ namespace OneShot.Test
                 if (!(c is C)) throw new ApplicationException();
             }
         }
-        
-        class ABCD 
+
+        class ABCD
         {
             public ABCD(A a, B b, C c, D d)
             {
@@ -151,7 +151,7 @@ namespace OneShot.Test
                 if (!(d is D)) throw new ApplicationException();
             }
         }
-        
+
         class BCD : IA
         {
             public BCD(B b, C c, D d)
@@ -161,7 +161,7 @@ namespace OneShot.Test
                 if (!(d is D)) throw new ApplicationException();
             }
         }
-        
+
         class FG : IB, IC
         {
             public FG(F f, G g)
@@ -170,7 +170,7 @@ namespace OneShot.Test
                 if (!(g is G)) throw new ApplicationException();
             }
         }
-        
+
         class CDEF : IB, IC
         {
             public CDEF(C c, D d, E e, F f)

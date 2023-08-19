@@ -20,11 +20,11 @@ namespace OneShot
     public sealed class ContainerComponentDrawer : Editor
     {
         private ContainerComponent _container = default!;
- 
+
         private void OnEnable() {
             _container = (ContainerComponent) target;
         }
- 
+
         public override void OnInspectorGUI() {
             base.OnInspectorGUI();
             using var _ = new EditorGUI.DisabledScope(true);
@@ -35,7 +35,7 @@ namespace OneShot
                 {
                     Lifetime.Singleton => "1",
                     Lifetime.Transient => "*",
-                    Lifetime.Scope => "<1>",
+                    Lifetime.Scoped => "<1>",
                     _ => throw new NotSupportedException()
                 });
                 EditorGUILayout.TextField(label, string.Join("|", resolversText));
