@@ -23,7 +23,7 @@ namespace OneShot
 
         [field: SerializeField] public Phase InjectPhase = Phase.Start;
         [field: SerializeField] public bool _injectableOnly = false;
-        [field: SerializeField] public bool _recursive = true;
+        [field: SerializeField] public int _recursiveDepth = -1;
         [field: SerializeField] public bool _stopOnInactiveObject = false;
 
         private void Awake()
@@ -48,10 +48,10 @@ namespace OneShot
 
         public void Inject(Container container)
         {
-            Debug.Assert(!enabled, "Inject already called");
+            Debug.Assert(enabled, "Inject already called");
             enabled = false;
-            if (_injectableOnly) container.RecursiveInjectAll<IInjectable>(gameObject, _stopOnInactiveObject);
-            else container.RecursiveInjectAll<MonoBehaviour>(gameObject, _stopOnInactiveObject);
+            if (_injectableOnly) container.RecursiveInjectAll<IInjectable>(gameObject, _stopOnInactiveObject, _recursiveDepth);
+            else container.RecursiveInjectAll<MonoBehaviour>(gameObject, _stopOnInactiveObject, _recursiveDepth);
         }
 
         private void Inject()
@@ -100,7 +100,7 @@ namespace OneShot
             }
         }
 
-        public static void TryInstallGameObject(this Container container, GameObject self, ContainerComponent? parent = null)
+        public static void TryInstallGameObject(this Container container, GameObject self)
         {
             var installers = ListPool<IInstaller>.Get();
             try
@@ -112,9 +112,7 @@ namespace OneShot
                 {
                     container = container.CreateChildContainer();
                     container.RegisterInstance(container).AsSelf();
-                    var containerComponent = self.AddComponent<ContainerComponent>();
-                    containerComponent.Value = container;
-                    containerComponent.Parent = parent;
+                    self.AddComponent<ContainerComponent>().Value = container;
                 }
 
                 foreach (var installer in installers) installer.Install(container);
@@ -125,22 +123,27 @@ namespace OneShot
             }
         }
 
-        private static void InstallAndInjectGameObject<T>(this Container container, GameObject self, ContainerComponent? parent = null)
+        private static void InstallAndInjectGameObject<T>(this Container container, GameObject self)
         {
-            container.TryInstallGameObject(self, parent);
+            container.TryInstallGameObject(self);
+            // FIXME: avoid inject into `IInstaller` components again?
             container.InjectGameObject<T>(self);
         }
 
-        public static void RecursiveInjectAll<T>(this Container container, GameObject self, bool stopOnInactiveObject)
+        public static void RecursiveInjectAll<T>(this Container container, GameObject self, bool stopOnInactiveObject, int depth = int.MaxValue)
         {
+            if (depth == 0) return;
             // skip inactive object and its children
             if (stopOnInactiveObject && !self.activeInHierarchy) return;
             if (self.TryGetComponent<StopInjection>(out _)) return;
 
             container.InstallAndInjectGameObject<T>(self);
 
+            if (depth > 0) depth--;
+            if (depth == 0) return;
+
             for (var i = 0; i < self.transform.childCount; i++)
-                container.RecursiveInjectAll<T>(self.transform.GetChild(i).gameObject, stopOnInactiveObject);
+                container.RecursiveInjectAll<T>(self.transform.GetChild(i).gameObject, stopOnInactiveObject, depth);
         }
     }
 }
