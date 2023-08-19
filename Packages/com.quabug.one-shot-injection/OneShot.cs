@@ -66,7 +66,7 @@ namespace OneShot
             }
         }
     }
-    
+
     public sealed class Container : IDisposable
     {
         internal Container? Parent { get; private set; }

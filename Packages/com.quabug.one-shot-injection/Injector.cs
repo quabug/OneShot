@@ -21,10 +21,10 @@ namespace OneShot
     {
         public enum Phase { Awake, Start, Update, LateUpdate, Manual }
 
-        [field: SerializeField] public Phase InjectPhase = Phase.Start;
-        [field: SerializeField] public bool _injectableOnly = false;
-        [field: SerializeField] public int _recursiveDepth = -1;
-        [field: SerializeField] public bool _stopOnInactiveObject = false;
+        [field: SerializeField] public Phase InjectPhase { get; private set; } = Phase.Start;
+        [field: SerializeField] public bool InjectableOnly { get; private set; } = false;
+        [field: SerializeField] public int RecursiveDepth { get; private set; } = -1;
+        [field: SerializeField] public bool StopOnInactiveObject { get; private set; } = false;
 
         private void Awake()
         {
@@ -50,8 +50,8 @@ namespace OneShot
         {
             Debug.Assert(enabled, "Inject already called");
             enabled = false;
-            if (_injectableOnly) container.RecursiveInjectAll<IInjectable>(gameObject, _stopOnInactiveObject, _recursiveDepth);
-            else container.RecursiveInjectAll<MonoBehaviour>(gameObject, _stopOnInactiveObject, _recursiveDepth);
+            if (InjectableOnly) container.RecursiveInjectAll<IInjectable>(gameObject, StopOnInactiveObject, RecursiveDepth);
+            else container.RecursiveInjectAll<MonoBehaviour>(gameObject, StopOnInactiveObject, RecursiveDepth);
         }
 
         private void Inject()
@@ -130,7 +130,7 @@ namespace OneShot
             container.InjectGameObject<T>(self);
         }
 
-        public static void RecursiveInjectAll<T>(this Container container, GameObject self, bool stopOnInactiveObject, int depth = int.MaxValue)
+        public static void RecursiveInjectAll<T>(this Container container, GameObject self, bool stopOnInactiveObject, int depth)
         {
             if (depth == 0) return;
             // skip inactive object and its children
