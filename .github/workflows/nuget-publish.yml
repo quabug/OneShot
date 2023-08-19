@@ -16,14 +16,14 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 6.0.x
+        dotnet-version: 7.0.306  # https://github.com/microsoft/testfx/issues/1733
     - name: Restore dependencies
-      run: dotnet restore Standard
+      run: dotnet restore .NET
     - name: Pack
       run: |
-        cd Standard/OneShotInjection
+        cd .NET/OneShotInjection
         dotnet pack -c Release -o out
     - name: Publish
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      run: dotnet nuget push ./Standard/OneShotInjection/out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push ./.NET/OneShotInjection/out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
