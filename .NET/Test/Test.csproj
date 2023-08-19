@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
-        <OutputType>Library</OutputType>
-        <LangVersion>7.3</LangVersion>
-        <TargetFrameworks>net472;net48;net6.0;net7.0</TargetFrameworks>
+        <LangVersion>9</LangVersion>
+        <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

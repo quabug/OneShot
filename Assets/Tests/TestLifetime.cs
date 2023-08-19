@@ -43,7 +43,7 @@ namespace OneShot.Test
         public void should_resolve_scoped()
         {
             var container = new Container();
-            container.Register<TypeA>().Scope().AsSelf();
+            container.Register<TypeA>().Scoped().AsSelf();
             Assert.AreSame(container.Resolve<TypeA>(), container.Resolve<TypeA>());
             var childContainer = container.CreateChildContainer();
             Assert.AreNotSame(container.Resolve<TypeA>(), childContainer.Resolve<TypeA>());
@@ -103,7 +103,7 @@ namespace OneShot.Test
             Assert.Catch<Exception>(() => child122.Resolve<int>());
             Assert.AreEqual(10, child2.Resolve<int>());
         }
-        
+
         [Test]
         public void should_dispose_transient_instances_of_container()
         {
@@ -157,7 +157,7 @@ namespace OneShot.Test
         {
             var container = new Container();
             var childContainer = container.CreateChildContainer();
-            container.Register<Disposable>().Scope().AsSelf();
+            container.Register<Disposable>().Scoped().AsSelf();
             var disposable1 = container.Resolve<Disposable>();
             var disposable2 = container.Resolve<Disposable>();
             var childDisposable1 = childContainer.Resolve<Disposable>();
@@ -194,7 +194,7 @@ namespace OneShot.Test
             Assert.AreEqual(1, disposable2.DisposedCount);
             Assert.AreEqual(1, childDisposable.DisposedCount);
         }
-        
+
         [Test]
         public void should_create_singleton_instance_based_on_registered_container()
         {
@@ -202,25 +202,25 @@ namespace OneShot.Test
             container.Register<InjectInt>().Singleton().AsSelf();
             container.RegisterInstance(123).AsSelf();
             Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
+
             var subContainer = container.CreateChildContainer();
             subContainer.RegisterInstance(234).AsSelf();
             Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(123));
         }
-        
+
         [Test]
         public void should_create_scoped_instance_based_on_resolved_container()
         {
             var container = new Container();
-            container.Register<InjectInt>().Scope().AsSelf();
+            container.Register<InjectInt>().Scoped().AsSelf();
             container.RegisterInstance(123).AsSelf();
             Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
+
             var subContainer = container.CreateChildContainer();
             subContainer.RegisterInstance(234).AsSelf();
             Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
         }
-        
+
         [Test]
         public void should_create_transient_instance_based_on_resolved_container()
         {
@@ -228,7 +228,7 @@ namespace OneShot.Test
             container.Register<InjectInt>().Transient().AsSelf();
             container.RegisterInstance(123).AsSelf();
             Assert.That(container.Resolve<InjectInt>().Value, Is.EqualTo(123));
-            
+
             var subContainer = container.CreateChildContainer();
             subContainer.RegisterInstance(234).AsSelf();
             Assert.That(subContainer.Resolve<InjectInt>().Value, Is.EqualTo(234));
@@ -255,7 +255,7 @@ namespace OneShot.Test
         {
             var container = new Container { PreventDisposableTransient = true };
             container.Register<Disposable>().Singleton().AsSelf();
-            container.Register<Disposable>().Scope().AsInterfaces();
+            container.Register<Disposable>().Scoped().AsInterfaces();
         }
 
         [Test]
