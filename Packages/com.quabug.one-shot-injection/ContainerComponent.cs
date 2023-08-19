@@ -33,9 +33,9 @@ namespace OneShot
                 var label = $"{type.Name}({resolverStack.Count})";
                 var resolversText = resolverStack.Select(resolver => resolver.Lifetime).Select(lifetime => lifetime switch
                 {
-                    Lifetime.Singleton => "1",
-                    Lifetime.Transient => "*",
-                    Lifetime.Scoped => "<1>",
+                    ResolverLifetime.Singleton => "1",
+                    ResolverLifetime.Transient => "*",
+                    ResolverLifetime.Scoped => "<1>",
                     _ => throw new NotSupportedException()
                 });
                 EditorGUILayout.TextField(label, string.Join("|", resolversText));
