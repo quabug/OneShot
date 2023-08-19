@@ -60,7 +60,10 @@ namespace OneShot
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Func, (int)Lifetime);
+            unchecked
+            {
+                return (Func.GetHashCode() * 397) ^ (int)Lifetime;
+            }
         }
     }
     
