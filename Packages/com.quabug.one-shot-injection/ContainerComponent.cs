@@ -1,5 +1,7 @@
 ﻿#nullable enable
 
+using System;
+using System.Linq;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -12,7 +14,7 @@ namespace OneShot
         public Container Value { get; set; } = default!;
         private void OnDestroy() => Value.Dispose();
     }
-    
+
 #if UNITY_EDITOR
     [CustomEditor(typeof(ContainerComponent))]
     public sealed class ContainerComponentDrawer : Editor
@@ -26,10 +28,17 @@ namespace OneShot
         public override void OnInspectorGUI() {
             base.OnInspectorGUI();
             using var _ = new EditorGUI.DisabledScope(true);
-            var types = _container.Value.Resolvers.Keys;
-            foreach (var type in types)
+            foreach (var (type, resolverStack) in _container.Value.Resolvers)
             {
-                EditorGUILayout.LabelField(type.Name);
+                var label = $"{type.Name}({resolverStack.Count})";
+                var resolversText = resolverStack.Select(resolver => resolver.Lifetime).Select(lifetime => lifetime switch
+                {
+                    Lifetime.Singleton => "1",
+                    Lifetime.Transient => "*",
+                    Lifetime.Scope => "<1>",
+                    _ => throw new NotSupportedException()
+                });
+                EditorGUILayout.TextField(label, string.Join("|", resolversText));
             }
         }
     }

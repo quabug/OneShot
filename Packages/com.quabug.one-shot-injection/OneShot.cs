@@ -36,11 +36,39 @@ using System.Linq.Expressions;
 
 namespace OneShot
 {
+    public readonly struct Resolver : IEquatable<Resolver>
+    {
+        public Func<Container, Type, object> Func { get; }
+        public Lifetime Lifetime { get; }
+        public bool IsValid => Func != null;
+
+        public Resolver(Func<Container, Type, object> func, Lifetime lifetime)
+        {
+            Func = func;
+            Lifetime = lifetime;
+        }
+
+        public bool Equals(Resolver other)
+        {
+            return Func.Equals(other.Func) && Lifetime == other.Lifetime;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Func, (int)Lifetime);
+        }
+    }
+    
     public sealed class Container : IDisposable
     {
         internal Container? Parent { get; private set; }
-        internal ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>> Resolvers { get; private set; }
-            = new ConcurrentDictionary<Type, ConcurrentStack<Func<Container, Type, object>>>();
+        internal ConcurrentDictionary<Type, ConcurrentStack<Resolver>> Resolvers { get; private set; }
+            = new ConcurrentDictionary<Type, ConcurrentStack<Resolver>>();
         private ConcurrentStack<IDisposable> _disposableInstances = new ConcurrentStack<IDisposable>();
         private ConcurrentStack<Container> _children = new ConcurrentStack<Container>();
 
@@ -122,7 +150,7 @@ namespace OneShot
             {
                 var creatorKey = label == null ? type : label.CreateLabelType(type);
                 var creator = FindFirstCreatorInHierarchy(creatorKey);
-                if (creator != null) return creator(this, type);
+                if (creator.IsValid) return creator.Func(this, type);
             }
 
             if (type.IsArray)
@@ -143,7 +171,7 @@ namespace OneShot
                 var generic = type.GetGenericTypeDefinition();
                 var creatorKey = label == null ? generic : label.CreateLabelType(generic);
                 var creator = FindFirstCreatorInHierarchy(creatorKey);
-                if (creator != null) return creator(this, type);
+                if (creator.IsValid) return creator.Func(this, type);
             }
 
             return null;
@@ -157,7 +185,7 @@ namespace OneShot
         public IEnumerable<object> ResolveGroup(Type type)
         {
             var creators = FindCreatorsInHierarchy(this, type).SelectMany(c => c);
-            return creators.Select(creator => creator(this, type));
+            return creators.Select(creator => creator.Func(this, type));
         }
 
         #endregion
@@ -220,22 +248,22 @@ namespace OneShot
 
         public bool IsRegisteredInHierarchy(Type type)
         {
-            return FindFirstCreatorInHierarchy(type) != null;
+            return FindFirstCreatorInHierarchy(type).IsValid;
         }
 
         public bool IsRegisteredInHierarchy<T>()
         {
-            return FindFirstCreatorInHierarchy(typeof(T)) != null;
+            return FindFirstCreatorInHierarchy(typeof(T)).IsValid;
         }
 
         public bool IsRegistered(Type type)
         {
-            return FindFirstCreatorInThisContainer(type) != null;
+            return FindFirstCreatorInThisContainer(type).IsValid;
         }
 
         public bool IsRegistered<T>()
         {
-            return FindFirstCreatorInThisContainer(typeof(T)) != null;
+            return FindFirstCreatorInThisContainer(typeof(T)).IsValid;
         }
 
         #endregion
@@ -282,7 +310,7 @@ namespace OneShot
             return ci;
         }
 
-        private static IEnumerable<IReadOnlyCollection<Func<Container, Type, object>>> FindCreatorsInHierarchy(Container container, Type type)
+        private static IEnumerable<IReadOnlyCollection<Resolver>> FindCreatorsInHierarchy(Container container, Type type)
         {
             var current = container;
             while (current != null)
@@ -293,21 +321,21 @@ namespace OneShot
             }
         }
 
-        private Func<Container, Type, object>? FindFirstCreatorInThisContainer(Type type)
+        private Resolver FindFirstCreatorInThisContainer(Type type)
         {
-            return Resolvers.TryGetValue(type, out var creators) && creators.TryPeek(out var creator) ? creator : null;
+            return Resolvers.TryGetValue(type, out var creators) && creators.TryPeek(out var creator) ? creator : default;
         }
 
-        private Func<Container, Type, object>? FindFirstCreatorInHierarchy(Type type)
+        private Resolver FindFirstCreatorInHierarchy(Type type)
         {
             var current = this;
             while (current != null)
             {
                 var creator = current.FindFirstCreatorInThisContainer(type);
-                if (creator != null) return creator;
+                if (creator.IsValid) return creator;
                 current = current.Parent;
             }
-            return null;
+            return default;
         }
 
         private object ResolveParameterInfo(ParameterInfo parameter, Type? label = null)
@@ -341,31 +369,29 @@ namespace OneShot
     // ReSharper disable once UnusedTypeParameter
     public interface ILabel<T> {}
 
-    internal enum Lifetime { Transient, Singleton, Scope }
+    public enum Lifetime { Transient, Singleton, Scope }
 
     public class ResolverBuilder
     {
-        internal readonly Lifetime Lifetime;
         internal readonly Container Container;
-        internal readonly Func<Container, Type, object> Creator;
+        internal readonly Resolver Resolver;
         internal readonly Type ConcreteType;
 
         internal ResolverBuilder(Container container, Type concreteType, Func<Container, Type, object> creator, Lifetime lifetime)
         {
             Container = container;
-            Creator = creator;
-            Lifetime = lifetime;
+            Resolver = new Resolver(creator, lifetime);
             ConcreteType = concreteType;
         }
 
         public ResolverBuilder As(Type contractType, Type? label = null)
         {
-            if (Container.PreventDisposableTransient && Lifetime == Lifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
+            if (Container.PreventDisposableTransient && Resolver.Lifetime == Lifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
                 throw new ArgumentException($"disposable type {ConcreteType} cannot register as transient. this check can be disabled by set {nameof(OneShot.Container.PreventDisposableTransient)} to false.");
             if (!contractType.IsAssignableFrom(ConcreteType)) throw new ArgumentException($"concreteType({ConcreteType}) must derived from contractType({contractType})", nameof(contractType));
             if (label != null) contractType = label.CreateLabelType(contractType);
-            var resolver = GetOrCreateResolver(contractType);
-            if (!resolver.Contains(Creator)) resolver.Push(Creator);
+            var resolverStack = GetOrCreateResolverStack(contractType);
+            if (!resolverStack.Contains(Resolver)) resolverStack.Push(Resolver);
             return this;
         }
 
@@ -396,11 +422,11 @@ namespace OneShot
             return this;
         }
 
-        private ConcurrentStack<Func<Container, Type, object>> GetOrCreateResolver(Type type)
+        private ConcurrentStack<Resolver> GetOrCreateResolverStack(Type type)
         {
             if (!Container.Resolvers.TryGetValue(type, out var resolvers))
             {
-                resolvers = new ConcurrentStack<Func<Container, Type, object>>();
+                resolvers = new ConcurrentStack<Resolver>();
                 Container.Resolvers[type] = resolvers;
             }
             return resolvers;
@@ -421,21 +447,21 @@ namespace OneShot
         [MustUseReturnValue]
         public ResolverBuilder Singleton()
         {
-            var lazyValue = new Lazy<object>(() => Creator(Container, ConcreteType));
+            var lazyValue = new Lazy<object>(() => Resolver.Func(Container, ConcreteType));
             return new ResolverBuilder(Container, ConcreteType, (container, contractType) => lazyValue.Value, Lifetime.Singleton);
         }
 
         [MustUseReturnValue]
         public ResolverBuilder Scope()
         {
-            var lazyValue = new Lazy<object>(() => Creator(Container, ConcreteType));
+            var lazyValue = new Lazy<object>(() => Resolver.Func(Container, ConcreteType));
             return new ResolverBuilder(Container, ConcreteType, ResolveScopeInstance, Lifetime.Scope);
 
             object ResolveScopeInstance(Container container, Type contractType)
             {
                 if (container == Container) return lazyValue.Value;
                 // register on runtime should be thread safe?
-                container.Register(ConcreteType, Creator).Scope().As(contractType);
+                container.Register(ConcreteType, Resolver.Func).Scope().As(contractType);
                 return container.Resolve(contractType);
             }
         }
@@ -461,7 +487,7 @@ namespace OneShot
         {
             var container = Container.CreateChildContainer();
             foreach (var (instance, label) in labeledInstances) container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
-            return new LifetimeBuilder(Container, (_, contractType) => Creator(container, contractType), ConcreteType);
+            return new LifetimeBuilder(Container, (_, contractType) => Resolver.Func(container, contractType), ConcreteType);
         }
     }
 
