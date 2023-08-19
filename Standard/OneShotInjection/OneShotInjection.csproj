@@ -3,7 +3,7 @@
     <PropertyGroup>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>2.8.2</Version>
+        <Version>2.9.2</Version>
         <Authors>quabug</Authors>
         <LangVersion>8</LangVersion>
         <PackageReadmeFile>README.md</PackageReadmeFile>
