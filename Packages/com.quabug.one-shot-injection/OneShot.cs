@@ -729,6 +729,7 @@ namespace OneShot
 
     public static class GenericExtension
     {
+        [MustUseReturnValue]
         public static WithBuilder RegisterGeneric(this Container container, Type genericType, MethodInfo creator)
         {
             if (genericType == null) throw new ArgumentNullException(nameof(genericType));
