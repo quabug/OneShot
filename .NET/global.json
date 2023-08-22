@@ -1,0 +1,6 @@
+{
+  "sdk": {
+    "version": "7.0.306", // https://github.com/microsoft/testfx/issues/1733
+    "rollForward": "disable"
+  }
+}
