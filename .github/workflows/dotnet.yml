@@ -17,9 +17,9 @@ jobs:
     - uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 7.0.306 # https://github.com/microsoft/testfx/issues/1733
-    - name: Restore dependencies
-      run: dotnet restore .NET
-    - name: Build
-      run: dotnet build --no-restore .NET
-    - name: Test
-      run: dotnet test --no-build --verbosity normal .NET
+    - name: Build and Test
+      run: |
+        cd .NET
+        dotnet restore
+        dotnet build --no-restore
+        dotnet test --no-build --verbosity normal
