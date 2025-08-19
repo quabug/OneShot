@@ -16,7 +16,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 7.0.306  # https://github.com/microsoft/testfx/issues/1733
+        global-json-file: .NET/global.json
     - name: Pack and Publish
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
