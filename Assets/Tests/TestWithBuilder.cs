@@ -4,10 +4,11 @@ namespace OneShot.Test
 {
     public class TestWithBuilder
     {
-        interface InterfaceA {}
-        class TypeA : InterfaceA {}
+        interface InterfaceA { }
 
-        class Foo
+        sealed class TypeA : InterfaceA { }
+
+        sealed class Foo
         {
             public int A;
             public float B;

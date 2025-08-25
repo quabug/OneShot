@@ -10,14 +10,14 @@ namespace OneShot.Test
     {
     }
 
-    internal class DefaultConstructor
+    internal sealed class DefaultConstructor
     {
         public readonly TypeA TypeA;
         public DefaultConstructor(TypeA typeA) => TypeA = typeA;
-        public int GetIntValue() => 100;
+        public static int GetIntValue() => 100;
     }
 
-    internal class InjectConstructor
+    internal sealed class InjectConstructor
     {
         public readonly TypeA TypeA;
 
@@ -27,10 +27,10 @@ namespace OneShot.Test
         public InjectConstructor(DefaultConstructor defaultConstructor) => TypeA = null;
     }
 
-    internal class ConstructorWithDefaultParameter
+    internal sealed class ConstructorWithDefaultParameter
     {
         public readonly TypeA TypeA;
-        public readonly int IntValue = 0;
+        public readonly int IntValue;
 
         public ConstructorWithDefaultParameter(TypeA typeA, int intValue = 10)
         {
@@ -39,7 +39,7 @@ namespace OneShot.Test
         }
     }
 
-    internal class ComplexClass
+    internal sealed class ComplexClass
     {
         public readonly TypeA A;
         public readonly InterfaceA B;
@@ -59,14 +59,14 @@ namespace OneShot.Test
             GetIntValue = getIntValue;
         }
     }
-    
-    internal class Disposable : IDisposable
+
+    internal sealed class Disposable : IDisposable
     {
-        public int DisposedCount = 0;
+        public int DisposedCount;
         public void Dispose() => DisposedCount++;
     }
 
-    internal class InjectInt
+    internal sealed class InjectInt
     {
         public int Value;
         public InjectInt(int value) => Value = value;

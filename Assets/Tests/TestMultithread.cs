@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -42,7 +42,7 @@ namespace OneShot.Test
             var root = new Container();
             root.PreAllocateArgumentArrayOnRegister = true;
 
-            for(var i = 0; i < count; i++) new Thread(Run) { Name = $"Thread{i + 1}" }.Start(root);
+            for (var i = 0; i < count; i++) new Thread(Run) { Name = $"Thread{i + 1}" }.Start(root);
 
             while (Interlocked.Read(ref _threadCount) > 0)
             {
@@ -88,7 +88,7 @@ namespace OneShot.Test
                     var type = _types[rnd.Next(_types.Length)];
                     try
                     {
-                        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}: resolve {type}");
+                        Console.WriteLine($"{Environment.CurrentManagedThreadId}: resolve {type}");
                         var instances = container.ResolveGroup(type).Append(container.Resolve(type));
                         foreach (var instance in instances)
                             if (!type.IsInstanceOfType(instance))
@@ -110,19 +110,23 @@ namespace OneShot.Test
             }
         }
 
-        interface IA {}
-        interface IB {}
-        interface IC {}
-        class A : IA {}
-        class B : IB {}
-        class C : IC {}
-        class D : IA, IB, IC {}
-        class E : C, IA, IB {}
-        class F : E {}
-        class G : A, IC {}
-        class H : B, IA {}
+        interface IA { }
+        interface IB { }
+        interface IC { }
+        class A : IA { }
+        class B : IB { }
+        class C : IC { }
 
-        class AB : IA
+        sealed class D : IA, IB, IC { }
+        class E : C, IA, IB { }
+
+        sealed class F : E { }
+
+        sealed class G : A, IC { }
+
+        sealed class H : B, IA { }
+
+        sealed class AB : IA
         {
             public AB(A a, B b)
             {
@@ -131,7 +135,7 @@ namespace OneShot.Test
             }
         }
 
-        class ABC
+        sealed class ABC
         {
             public ABC(A a, B b, C c)
             {
@@ -141,7 +145,7 @@ namespace OneShot.Test
             }
         }
 
-        class ABCD
+        sealed class ABCD
         {
             public ABCD(A a, B b, C c, D d)
             {
@@ -152,7 +156,7 @@ namespace OneShot.Test
             }
         }
 
-        class BCD : IA
+        sealed class BCD : IA
         {
             public BCD(B b, C c, D d)
             {
@@ -162,7 +166,7 @@ namespace OneShot.Test
             }
         }
 
-        class FG : IB, IC
+        sealed class FG : IB, IC
         {
             public FG(F f, G g)
             {
@@ -171,7 +175,7 @@ namespace OneShot.Test
             }
         }
 
-        class CDEF : IB, IC
+        sealed class CDEF : IB, IC
         {
             public CDEF(C c, D d, E e, F f)
             {

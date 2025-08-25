@@ -32,25 +32,27 @@ using JetBrains.Annotations;
 using System.Linq.Expressions;
 #endif
 
+// For .NET Standard 2.1 compatibility with C# 9+ features (record types)
+#if NETSTANDARD2_1 || NETSTANDARD2_0
+namespace System.Runtime.CompilerServices
+{
+    using System.ComponentModel;
+    /// <summary>
+    /// Reserved to be used by the compiler for tracking metadata.
+    /// This class should not be used by developers in source code.
+    /// This polyfill is common in libraries targeting .NET Standard 2.1.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    internal static class IsExternalInit { }
+}
+#endif
+
 namespace OneShot
 {
-    public readonly struct Resolver : IEquatable<Resolver>
+
+    public readonly record struct Resolver(Func<Container, Type, object> Func, ResolverLifetime Lifetime)
     {
-        public Func<Container, Type, object> Func { get; }
-        public ResolverLifetime Lifetime { get; }
         public bool IsValid => Func != null;
-
-        public Resolver(Func<Container, Type, object> func, ResolverLifetime lifetime)
-        {
-            Func = func;
-            Lifetime = lifetime;
-        }
-
-        public bool Equals(Resolver other) => Func.Equals(other.Func) && Lifetime == other.Lifetime;
-        public override bool Equals(object? obj) => obj is Resolver other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(Func, (int)Lifetime);
-        public static bool operator ==(in Resolver left, in Resolver right) => left.Equals(right);
-        public static bool operator !=(in Resolver left, in Resolver right) => !(left == right);
     }
 
     public sealed class Container : IDisposable
@@ -655,7 +657,7 @@ namespace OneShot
             var parameters = ci.GetParameters();
             var labels = parameters.Select(param => param.GetCustomAttribute<InjectAttribute>()?.Label).ToArray();
 #if ENABLE_IL2CPP
-            Func<object[], object> func = ci.Invoke;
+        Func<object[], object> func = ci.Invoke;
 #else
             var @params = Expression.Parameter(typeof(object[]));
             var args = parameters.Select((parameter, index) => Expression.Convert(
@@ -749,4 +751,5 @@ namespace OneShot
             }
         }
     }
-}
+
+} // namespace OneShot

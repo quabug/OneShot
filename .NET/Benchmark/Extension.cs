@@ -14,6 +14,6 @@ public static class Extension
         ).Cast<Expression>().ToArray();
         var @new = Expression.New(ci, args);
         var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
-        return (Func<object[], object>) lambda.Compile();
+        return (Func<object[], object>)lambda.Compile();
     }
 }

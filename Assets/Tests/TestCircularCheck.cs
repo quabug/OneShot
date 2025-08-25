@@ -4,14 +4,14 @@ namespace OneShot.Test
 {
     public class TestCircularCheck
     {
-        class A
+        sealed class A
         {
             public A(B b)
             {
             }
         }
 
-        class B
+        sealed class B
         {
             public B(A a)
             {
@@ -28,21 +28,21 @@ namespace OneShot.Test
             Assert.Catch<CircularDependencyException>(() => container.Resolve<B>());
         }
 
-        private class C
+        private sealed class C
         {
             public C(D _)
             {
             }
         }
 
-        private class D
+        private sealed class D
         {
             public D(E _)
             {
             }
         }
 
-        private class E
+        private sealed class E
         {
             public E(C _)
             {

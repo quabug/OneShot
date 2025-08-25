@@ -62,7 +62,7 @@ namespace OneShot.Test
             container.Register<InjectConstructor>().AsSelf();
             container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => DefaultConstructor.GetIntValue).AsSelf();
             container.Register<ComplexClass>().AsSelf();
             var complex1 = container.Resolve<ComplexClass>();
             Assert.AreSame(typeA, complex1.A);
@@ -95,7 +95,7 @@ namespace OneShot.Test
             var instance = new TypeA();
             container.RegisterInstance(instance).AsSelf();
             container.Register<DefaultConstructor>().Singleton().AsSelf();
-            container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+            container.Register<Func<int>>((c, t) => DefaultConstructor.GetIntValue).AsSelf();
             Assert.AreEqual(100, container.Resolve<Func<int>>()());
         }
 
@@ -117,7 +117,7 @@ namespace OneShot.Test
             Assert.Catch<Exception>(() => container.Resolve<DefaultConstructor>());
         }
 
-        class Injected
+        sealed class Injected
         {
             [Inject] public int Int;
             [Inject] public float Float { get; private set; }
@@ -145,10 +145,6 @@ namespace OneShot.Test
             }
 
             public int E;
-            void Init(int e)
-            {
-                E = e;
-            }
         }
 
         [Test]
@@ -170,7 +166,7 @@ namespace OneShot.Test
             Assert.AreEqual(0, instance.E);
         }
 
-        class CannotInject
+        sealed class CannotInject
         {
             [Inject] public int A { get; }
         }
@@ -249,7 +245,7 @@ namespace OneShot.Test
             Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
         }
 
-        class IntArrayClass
+        sealed class IntArrayClass
         {
             public readonly int IntValue;
             public readonly int[] IntArray;
@@ -295,9 +291,8 @@ namespace OneShot.Test
             Assert.That(new[] { 11, 10 }, Is.EqualTo(instance.IntArray));
         }
 
-        class InjectMethod
+        sealed class InjectMethod
         {
-            [Inject] void Inject(InterfaceA _) {}
         }
 
         [Test]
@@ -308,9 +303,9 @@ namespace OneShot.Test
             Assert.DoesNotThrow(() => container.InjectAll(new InjectMethod()));
         }
 
-        class InjectTypeA
+        sealed class InjectTypeA
         {
-            [Inject] public void Inject(TypeA _) {}
+            [Inject] public static void Inject(TypeA _) { }
         }
 
         [Test]
@@ -324,8 +319,9 @@ namespace OneShot.Test
             container.InjectAll(instance);
         }
 
-        class TypeAA : TypeA {}
-        class TypeAAA : TypeAA {}
+        class TypeAA : TypeA { }
+
+        sealed class TypeAAA : TypeAA { }
 
         [Test]
         public void should_register_and_resolve_by_bases()
@@ -341,7 +337,7 @@ namespace OneShot.Test
             [Inject] public float FloatValue;
         }
 
-        class InjectIntFloat : InjectFloat
+        sealed class InjectIntFloat : InjectFloat
         {
             [Inject] public int IntValue;
         }

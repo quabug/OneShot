@@ -1,4 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
+// See https://aka.ms/new-console-template for more information
 
 using System.Numerics;
 using System.Reflection;
@@ -8,12 +8,12 @@ using BenchmarkDotNet.Running;
 
 Console.WriteLine("Hello, World!");
 
-var summary = BenchmarkRunner.Run(typeof(Program).Assembly);
+var _ = BenchmarkRunner.Run(typeof(Program).Assembly);
 
 public class BenchmarkEmpty
 {
-    class Empty {}
-    
+    sealed class Empty { }
+
     private readonly Type _type;
     private readonly ConstructorInfo _ci;
     private readonly Func<object[], object> _creator;
@@ -24,11 +24,12 @@ public class BenchmarkEmpty
         _ci = _type.GetConstructors()[0];
         _creator = _ci.Compile();
     }
-    
+
     [Benchmark] public object EmptyNew() => new();
     [Benchmark] public object EmptyCreateInstance() => Activator.CreateInstance(_type);
     [Benchmark] public object EmptyConstructorInvoke() => _ci.Invoke(Array.Empty<object>());
-    [Benchmark] public object EmptyConstructorInvokeWithInstance()
+    [Benchmark]
+    public object EmptyConstructorInvokeWithInstance()
     {
         var instance = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(_type);
         return _ci.Invoke(instance, Array.Empty<object>());
@@ -38,7 +39,7 @@ public class BenchmarkEmpty
 
 public class BenchmarkComplex
 {
-    class Complex
+    sealed class Complex
     {
         public int I;
         public long L;
@@ -55,7 +56,7 @@ public class BenchmarkComplex
             M = m;
         }
     }
-    
+
     private readonly Type _type;
     private readonly ConstructorInfo _ci;
     private readonly Func<object[], object> _creator;
@@ -68,11 +69,12 @@ public class BenchmarkComplex
         _creator = _ci.Compile();
         _args = new object[] { 123, 234L, 111.111, "fjklfd", Matrix4x4.Identity };
     }
-    
+
     [Benchmark] public object ComplexNew() => new Complex(123, 234L, 111.111, "fjklfd", Matrix4x4.Identity);
     [Benchmark] public object ComplexCreateInstance() => Activator.CreateInstance(_type, _args);
     [Benchmark] public object ComplexConstructorInvoke() => _ci.Invoke(_args);
-    [Benchmark] public object ComplexConstructorInvokeWithInstance()
+    [Benchmark]
+    public object ComplexConstructorInvokeWithInstance()
     {
         var instance = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(_type);
         return _ci.Invoke(instance, _args);

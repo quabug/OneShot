@@ -6,10 +6,11 @@ namespace OneShot.Test
 {
     public class TestGeneric
     {
-        class Generic<T> {}
-        class Generic<T, U> {}
+        sealed class Generic<T> { }
 
-        private static Type[] _genericArguments = {
+        sealed class Generic<T, U> { }
+
+        private static readonly Type[] _genericArguments = {
             typeof(Generic<int>), typeof(Generic<float>), typeof(Generic<Generic<int>>), typeof(Generic<Generic<Generic<int>>>),
             typeof(Generic<int, float>), typeof(Generic<Generic<int>, Generic<float>>), typeof(Generic<Generic<int, float>>)
         };
@@ -22,9 +23,9 @@ namespace OneShot.Test
             container.Register(typeof(Generic<,>), (_, t) => Activator.CreateInstance(typeof(Generic<,>).MakeGenericType(t.GetGenericArguments()))).As(typeof(Generic<,>));
             Assert.That(container.Resolve(type), Is.TypeOf(type));
         }
-        
-        interface Label<T> : ILabel<T> {}
-        
+
+        interface Label<T> : ILabel<T> { }
+
         [Test, TestCaseSource(nameof(_genericArguments))]
         public void should_make_instance_of_generic_with_label(Type type)
         {
@@ -34,7 +35,7 @@ namespace OneShot.Test
             Assert.Catch<ArgumentException>(() => container.Resolve(type));
             Assert.That(container.Resolve(type, typeof(Label<>)), Is.TypeOf(type));
         }
-        
+
         [Test]
         public void should_make_instance_of_concrete_generic()
         {
