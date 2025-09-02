@@ -1,4 +1,4 @@
-[![NuGet Badge](https://buildstats.info/nuget/OneShot)](https://www.nuget.org/packages/OneShot/)
+[![NuGet Version](https://img.shields.io/nuget/v/OneShot)](https://www.nuget.org/packages/OneShot/)
 [![openupm](https://img.shields.io/npm/v/com.quabug.one-shot-injection?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.quabug.one-shot-injection/)
 
 # OneShot Dependency Injection
@@ -18,9 +18,9 @@ A lightweight, high-performance, [single-file](Packages/com.quabug.one-shot-inje
 
 ## Requirements
 
-- **Unity**: 2019.3 or higher
+- **Unity**: 2022.3 or higher
 - **.NET**: .NET Standard 2.1 or higher
-- **C#**: 9.0 or higher
+- **C#**: 10.0 or higher
 
 ## Basic Concept of DI
 - [How YOU can Learn Dependency Injection in .NET Core and C#](https://softchris.github.io/pages/dotnet-di.html)
@@ -127,9 +127,6 @@ container.Register<Service>().With("config", 123).AsSelf();
 
 // Generic type registration
 container.RegisterGeneric(typeof(Repository<>), CreateRepository).AsSelf();
-
-// Multiple registrations for array resolution
-container.Register<IPlugin>().Multiple().AsInterfaces();
 ```
 
 ### Resolution
@@ -140,9 +137,6 @@ var service = container.Resolve<IService>();
 
 // Generic resolution
 var repository = container.Resolve<Repository<User>>();
-
-// Array resolution (gets all registered implementations)
-var plugins = container.Resolve<IPlugin[]>();
 
 // Group resolution
 var services = container.ResolveGroup<IService>();
@@ -159,13 +153,13 @@ class Service
     // Constructor injection (preferred)
     [Inject]
     public Service(IDatabase db, ILogger logger) { }
-    
+
     // Field injection
     [Inject] private ICache _cache;
-    
+
     // Property injection
     [Inject] public IConfig Config { get; set; }
-    
+
     // Method injection
     [Inject]
     public void Initialize(IEventBus eventBus) { }
@@ -187,6 +181,7 @@ interface Cache<T> : ILabel<T> { }  // Generic label
 // Register with labels
 container.Register<PostgresDb>().As<IDatabase>(typeof(PrimaryDb));
 container.Register<MySqlDb>().As<IDatabase>(typeof(SecondaryDb));
+container.Register<CachedRepository>().As<IRepository>(typeof(Cache<>));
 
 // Use labeled dependencies
 class Service
