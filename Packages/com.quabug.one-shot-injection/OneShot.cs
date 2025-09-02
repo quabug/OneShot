@@ -70,7 +70,7 @@ public sealed class Container : IDisposable
 #if DEBUG || UNITY_EDITOR || DEVELOPMENT_BUILD
         = true;
 #else
-            = false;
+        = false;
 #endif
 
     /// <summary>
