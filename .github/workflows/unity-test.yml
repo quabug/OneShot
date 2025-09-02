@@ -27,6 +27,7 @@ jobs:
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
+          unityVersion: 2022.3.61f1
           customParameters: -scriptingBackend ${{ matrix.backend }} -testCategory "!benchmark"
           projectPath: .
           githubToken: ${{ secrets.GITHUB_TOKEN }}
