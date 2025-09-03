@@ -1,100 +1,331 @@
-[![NuGet Badge](https://buildstats.info/nuget/OneShot)](https://www.nuget.org/packages/OneShot/)
+[![NuGet Version](https://img.shields.io/nuget/v/OneShot)](https://www.nuget.org/packages/OneShot/)
 [![openupm](https://img.shields.io/npm/v/com.quabug.one-shot-injection?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.quabug.one-shot-injection/)
 
-# One Shot Dependency Injection
-A [single file](Packages/com.quabug.one-shot-injection/OneShot.cs) DI container
+# OneShot Dependency Injection
+
+A lightweight, high-performance, [single-file](Packages/com.quabug.one-shot-injection/OneShot.cs) dependency injection container for Unity and .NET.
+
+## Features
+
+- 🎯 **Single File** - Entire DI container in one file for easy copy-paste distribution
+- ⚡ **High Performance** - Expression compilation for fast instance creation (with IL2CPP fallback)
+- 🔒 **Thread Safe** - All public APIs are thread-safe using concurrent collections
+- 🎮 **Unity Integration** - Built-in MonoBehaviour components and scene injection
+- 🏗️ **Hierarchical Containers** - Parent-child relationships with proper disposal chains
+- 🔧 **Flexible Registration** - Instance, Transient, Singleton, Scoped, and Factory patterns
+- 🏷️ **Type-Safe Labels** - Support for labeled dependencies with compile-time safety
+- 📦 **Generic Support** - Full open generic type registration and resolution
+
+## Requirements
+
+- **Unity**: 2022.3 or higher
+- **.NET**: .NET Standard 2.1 or higher
+- **C#**: 10.0 or higher
 
 ## Basic Concept of DI
 - [How YOU can Learn Dependency Injection in .NET Core and C#](https://softchris.github.io/pages/dotnet-di.html)
 - [vContainer](https://vcontainer.hadashikick.jp/about/what-is-di)
 
 ## Installation
-- Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
-- [Unity only] or follow instructions on [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection) to install it as a package of Unity.
-- [.NET only] or follow instruction on [NuGet](https://www.nuget.org/packages/OneShot/) to install it for .NET project.
 
-## Usage
-[Test Cases](Assets/Tests)
+### Option 1: Single File (Simplest)
+Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
 
-### [Container](Packages/com.quabug.one-shot-injection/OneShot.cs#L39)
-A scope mark for registered types.
+### Option 2: Unity Package Manager
+Install via [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection):
+```bash
+openupm add com.quabug.one-shot-injection
+```
 
-``` c#
-// create new container
+### Option 3: NuGet Package (.NET)
+Install via [NuGet](https://www.nuget.org/packages/OneShot/):
+```bash
+dotnet add package OneShot
+```
+
+## Quick Start
+
+```csharp
+using OneShot;
+
+// Create container
 var container = new Container();
 
-// create child container/scope
+// Register types
+container.Register<DatabaseService>().Singleton().AsInterfaces();
+container.Register<UserRepository>().Scoped().AsSelf();
+container.RegisterInstance<ILogger>(new ConsoleLogger()).AsSelf();
+
+// Resolve dependencies
+var repository = container.Resolve<UserRepository>();
+```
+
+## Core Usage
+
+> 📚 See [Test Cases](Assets/Tests) for comprehensive examples
+
+### Container Management
+
+```csharp
+// Create root container
+var container = new Container();
+
+// Create child container (inherits parent registrations)
 var child = container.CreateChildContainer();
 
-// create a scope container (exactly same as child container)
+// Create scoped container (auto-disposed)
 using (var scope = container.BeginScope())
+{
+    // Scoped registrations live here
+}
 
-// container options
-// enable/disable circular check, enabled by default
-container.EnableCircularCheck = false;
+// Performance Options
+container.EnableCircularCheck = false; // Disable circular dependency checking (default: true in DEBUG)
+container.PreAllocateArgumentArrayOnRegister = true; // Pre-allocate for performance (default: false)
+container.PreventDisposableTransient = true; // Prevent memory leaks (default: false)
+```
 
-// pre-allocate argument array of registered type, disabled by default
+### Registration Patterns
+
+#### Lifetimes
+```csharp
+// Transient - New instance each time (default)
+container.Register<Service>().AsSelf();
+
+// Singleton - Single instance per container hierarchy
+container.Register<Service>().Singleton().AsSelf();
+
+// Scoped - Single instance per container scope
+container.Register<Service>().Scoped().AsSelf();
+
+// Instance - Register existing instance
+container.RegisterInstance<IConfig>(new AppConfig()).AsSelf();
+```
+
+#### Interface and Base Class Registration
+```csharp
+// Register as specific interface
+container.Register<Service>().As<IService>();
+
+// Register as all interfaces
+container.Register<Service>().AsInterfaces();
+
+// Register as all base classes
+container.Register<Service>().AsBases();
+
+// Register as self and interfaces
+container.Register<Service>().AsSelf().AsInterfaces();
+```
+
+#### Advanced Registration
+```csharp
+// Factory registration
+container.Register<Func<int>>((container, type) => () => 42).AsSelf();
+
+// With specific constructor parameters
+container.Register<Service>().With("config", 123).AsSelf();
+
+// Generic type registration
+container.RegisterGeneric(typeof(Repository<>), CreateRepository).AsSelf();
+```
+
+### Resolution
+
+```csharp
+// Basic resolution
+var service = container.Resolve<IService>();
+
+// Generic resolution
+var repository = container.Resolve<Repository<User>>();
+
+// Group resolution
+var services = container.ResolveGroup<IService>();
+
+// Create instance without registration
+var instance = container.Instantiate<MyClass>();
+```
+
+### Injection Types
+
+```csharp
+class Service
+{
+    // Constructor injection (preferred)
+    [Inject]
+    public Service(IDatabase db, ILogger logger) { }
+
+    // Field injection
+    [Inject] private ICache _cache;
+
+    // Property injection
+    [Inject] public IConfig Config { get; set; }
+
+    // Method injection
+    [Inject]
+    public void Initialize(IEventBus eventBus) { }
+}
+
+// Manual injection
+var service = new Service();
+container.InjectAll(service); // Injects fields, properties, and methods
+```
+
+### Labels (Named Dependencies)
+
+```csharp
+// Define labels
+interface PrimaryDb : ILabel<IDatabase> { }  // Type-specific label
+interface SecondaryDb : ILabel<IDatabase> { }
+interface Cache<T> : ILabel<T> { }  // Generic label
+
+// Register with labels
+container.Register<PostgresDb>().As<IDatabase>(typeof(PrimaryDb));
+container.Register<MySqlDb>().As<IDatabase>(typeof(SecondaryDb));
+container.Register<CachedRepository>().As<IRepository>(typeof(Cache<>));
+
+// Use labeled dependencies
+class Service
+{
+    public Service(
+        [Inject(typeof(PrimaryDb))] IDatabase primary,
+        [Inject(typeof(SecondaryDb))] IDatabase secondary,
+        [Inject(typeof(Cache<>))] IRepository cached
+    ) { }
+}
+```
+
+## Unity Integration
+
+### ContainerComponent
+
+```csharp
+// Attach container to GameObject
+var containerComponent = gameObject.AddComponent<ContainerComponent>();
+containerComponent.Value = container;
+
+// Auto-disposal on GameObject destruction
+```
+
+### Injector Component
+
+```csharp
+// Add Injector to GameObject for automatic injection
+var injector = gameObject.AddComponent<Injector>();
+injector.InjectionPhase = InjectionPhase.Awake; // or Start, Update, LateUpdate, Manual
+
+// Components on this GameObject will be injected automatically
+```
+
+### Scene Injection
+
+```csharp
+// Inject all eligible components in scene
+container.InjectScene();
+
+// Prevent injection on specific GameObjects
+gameObject.AddComponent<StopInjection>();
+```
+
+### Installer Pattern
+
+```csharp
+public class GameInstaller : MonoBehaviour, IInstaller
+{
+    public void Install(Container container)
+    {
+        container.Register<PlayerController>().Singleton().AsSelf();
+        container.Register<GameManager>().Scoped().AsInterfaces();
+        container.Register<AudioSystem>().Singleton().AsBases();
+    }
+}
+```
+
+## Performance Optimization
+
+### Configuration Options
+
+```csharp
+// For high-frequency resolution scenarios
 container.PreAllocateArgumentArrayOnRegister = true;
 
-// throw on register disposable transient, disabled by default
+// Disable circular dependency checking in production
+#if !DEBUG
+container.EnableCircularCheck = false;
+#endif
+
+// Prevent memory leaks from disposable transients
 container.PreventDisposableTransient = true;
 ```
 
-### [Register Types](Packages/com.quabug.one-shot-injection/OneShot.cs#L147)
-``` c#
-container.RegisterInstance<int>(10).AsSelf(); // register instance of int
-container.Register<Foo>().Singleton().AsSelf(); // register a singleton of `Foo`
-container.Register<Bar>().AsSelf(); // register transient of `Bar`
-container.Register<Func<int>>((resolveContainer, contractType) => container.Resolve<Foo>().GetIntValue).AsSelf(); // register `Func<int>`
-conatiner.Register<Foo>().As<IFoo>(); // register interface of `IFoo`
-container.Register<Foo>().With(123, new Bar()).AsSelf(); // register with certain instances
-container.Register(typeof(Generic<>), (_, type) => Activator.CreateInstance(type)).As(typeof(Generic<>)); // register generic type
+### IL2CPP Compatibility
+
+OneShot automatically detects IL2CPP and falls back to reflection-based instantiation when expression compilation is unavailable.
+
+```csharp
+// Works seamlessly in both Mono and IL2CPP
+container.Register<Service>().Singleton().AsSelf();
 ```
 
-### [Resolve](Packages/com.quabug.one-shot-injection/OneShot.cs#L88)
-``` c#
-container.Resolve<int>();
-container.Resolve<IFoo>();
-container.Resolve<Generic<int>>();
+## Advanced Features
+
+### Circular Dependency Detection
+
+```csharp
+// Automatically detected and throws descriptive exception
+container.Register<A>().AsSelf(); // A depends on B
+container.Register<B>().AsSelf(); // B depends on A
+var a = container.Resolve<A>(); // Throws CircularDependencyException
 ```
 
-### [InjectAttribute](Packages/com.quabug.one-shot-injection/OneShot.cs#L291)
-``` c#
-class Foo
+### Disposal Management
+
+```csharp
+// IDisposable instances are automatically disposed
+using (var scope = container.BeginScope())
 {
-    public Foo() {}
-    // mark a constructor to use on instantiate
-    [Inject] public Foo(int value) {}
+    var service = scope.Resolve<DisposableService>();
+} // service.Dispose() called automatically
 
-    [Inject] int IntValue; // field able to inject
-    [Inject] float FloatValue { get; set; } // property albe to inject
-    [Inject] void Init(int value) {} // method albe to inject
-}
-
-container.Register<Foo>().Singleton().AsSelf();
-var foo = container.Resolve<Foo>(); // instantial `Foo` by `Foo(int value)`
-container.InjectAll(foo); // inject its fields, properteis and methods
+// Child containers cascade disposal
+container.Dispose(); // Disposes all child containers and registered IDisposables
 ```
 
-### [Label](Packages/com.quabug.one-shot-injection/OneShot.cs#L298)
-``` c#
-class Foo {}
-interface TypedLabelFoo : ILabel<Foo> {} // declare type-specific label, will throw on labeling other type
-interface AnyLabel<T> : ILabel<T> {} // declare generic-typed label, works on any types
+## Best Practices
 
-class Bar
-{
-    public Bar(
-        Foo foo, // un-labeled type
-        [Inject(typeof(TypedLabelFoo))] Foo labeledFoo, // labeled type with type-specific label
-        [Inject(typeof(AnyLabel<>))] Foo anyLabeledFoo, // labeled type
-        [Inject(typeof(AnyLabel<>))] int anyLabeledInt  // labeled type
-    ) {}
-    
-    [Inject(typeof(AnyLabel<>))] Foo LabeledProperty { get; private set; }
-    [Inject(typeof(FooLabel))] Foo LabeledField;
-}
+1. **Prefer Constructor Injection** - Most explicit and testable
+2. **Use Scoped for Request/Frame Lifetime** - Ideal for Unity Update loops
+3. **Avoid Disposable Transients** - Can cause memory leaks
+4. **Use Labels for Multiple Implementations** - Type-safe alternative to string keys
+5. **Create Child Containers for Isolation** - Test scenarios or modular features
 
-container.Register<Foo>().AsSelf(typeof(TypedLabel)); // register typed label foo
-container.Register<Bar>().With((123, typeof(AnyLabel<>)), (new Foo(), typeof(AnyLabel<>))).AsSelf(); // register additional-labeled instances
+## Benchmarks
+
+OneShot is optimized for performance. Run benchmarks:
+
+```bash
+cd .NET/
+dotnet run -c Release --project Benchmark
 ```
+
+## Testing
+
+### .NET Tests
+```bash
+cd .NET/
+dotnet test --no-build --verbosity normal
+```
+
+### Unity Tests
+Run via Unity Test Runner in the Unity Editor
+
+## Contributing
+
+Contributions welcome! Please ensure:
+- All tests pass on both Mono and IL2CPP
+- No compiler warnings (warnings as errors enabled)
+- Thread safety maintained
+- Single-file philosophy preserved
+
+## License
+
+MIT License - See [LICENSE](LICENSE) file for details

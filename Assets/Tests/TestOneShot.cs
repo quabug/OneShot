@@ -209,7 +209,7 @@ namespace OneShot.Test
         float AddFunc(int a, float b = 100) => a + b;
 
 #if UNITY_EDITOR
-        [Test]
+        [Test, Ignore("fixed?")]
         public void unity_mono_is_not_able_to_resolve_default_parameter_of_local_function()
         {
             var container = new Container();

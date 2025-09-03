@@ -3,9 +3,9 @@
     <PropertyGroup>
         <RootNamespace>OneShot</RootNamespace>
         <PackageId>OneShot</PackageId>
-        <Version>3.0.1</Version>
+        <Version>3.1.0</Version>
         <Authors>quabug</Authors>
-        <LangVersion>9</LangVersion>
+        <LangVersion>10</LangVersion>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <Title>OneShot</Title>
         <Description>A single file DI container</Description>

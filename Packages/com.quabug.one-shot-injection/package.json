@@ -1,7 +1,7 @@
 {
   "name": "com.quabug.one-shot-injection",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "displayName": "One Shot Dependency Injection",
-  "description": "A single file DI container",
-  "type": "library"
+  "description": "Lightweight, high-performance dependency injection container for Unity. Single-file design with expression compilation, thread safety, hierarchical containers, and full Unity integration including MonoBehaviour components and scene injection.",
+  "unity": "2022.3"
 }
