@@ -69,8 +69,6 @@ public sealed class Container : IDisposable
     public bool EnableCircularCheck { get; set; }
 #if DEBUG || UNITY_EDITOR || DEVELOPMENT_BUILD
         = true;
-#else
-        = false;
 #endif
 
     /// <summary>
