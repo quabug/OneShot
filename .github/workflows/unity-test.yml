@@ -22,16 +22,16 @@ jobs:
             Library
             CodeCoverage
           key: LibraryAndCoverage
-      - uses: game-ci/unity-test-runner@v2
+      - uses: game-ci/unity-test-runner@v4
         id: unity-test
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
-          unityVersion: 2022.3.61f1
           customParameters: -scriptingBackend ${{ matrix.backend }} -testCategory "!benchmark"
           projectPath: .
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           coverageOptions: 'generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;pathFilters:+**/Packages/**'
+          testMode: All
       - uses: actions/upload-artifact@v4
         if: always()
         with:
