@@ -373,7 +373,7 @@ internal static class TypeModelExtractor
                 ? string.Format(CultureInfo.InvariantCulture, "default({0})", param.Type.ToDisplayString(s_fqn))
                 : "null";
 
-        return value switch
+        var literal = value switch
         {
             bool b => b ? "true" : "false",
             char c => string.Format(CultureInfo.InvariantCulture, "'{0}'", EscapeChar(c)),
@@ -391,6 +391,12 @@ internal static class TypeModelExtractor
             sbyte sb => sb.ToString(CultureInfo.InvariantCulture),
             _ => value.ToString() ?? "default"
         };
+
+        // Enum defaults: cast the underlying integral value to the enum type
+        if (param.Type.TypeKind == TypeKind.Enum)
+            return string.Format(CultureInfo.InvariantCulture, "({0})({1})", param.Type.ToDisplayString(s_fqn), literal);
+
+        return literal;
     }
 
     private static string FormatFloat(float f)
