@@ -30,7 +30,54 @@ using System.Threading;
 namespace OneShot;
 
 /// <summary>
-/// Represents a resolver function with its associated lifetime scope.
+/// Provides type metadata for source-generated dependency injection, replacing runtime reflection.
+/// The source generator emits an implementation of this interface for each injectable type.
+/// </summary>
+public interface ITypeInfo
+{
+    /// <summary>The concrete type this metadata describes.</summary>
+    Type ConcreteType { get; }
+
+    /// <summary>Creates a new instance of the type, resolving constructor parameters from the container.</summary>
+    object Create(Container container);
+
+    /// <summary>Injects all <see cref="InjectAttribute"/>-marked fields, properties, and methods on the instance.</summary>
+    void InjectAll(Container container, object instance);
+
+    /// <summary>All interfaces implemented by the concrete type.</summary>
+    IReadOnlyList<Type> Interfaces { get; }
+
+    /// <summary>All base types of the concrete type (excluding <see cref="object"/> and <see cref="ValueType"/>).</summary>
+    IReadOnlyList<Type> BaseTypes { get; }
+}
+
+/// <summary>
+/// Global registry mapping <see cref="Type"/> to <see cref="ITypeInfo"/>.
+/// Source-generated module initializers populate this registry at startup.
+/// </summary>
+public static class TypeInfoRegistry
+{
+    private static readonly ConcurrentDictionary<Type, ITypeInfo> s_registry = new();
+
+    /// <summary>
+    /// Registers an <see cref="ITypeInfo"/> for its concrete type. Called by generated module initializers.
+    /// </summary>
+    public static void Register(ITypeInfo typeInfo)
+    {
+        s_registry[typeInfo.ConcreteType] = typeInfo;
+    }
+
+    /// <summary>
+    /// Attempts to retrieve the <see cref="ITypeInfo"/> for <paramref name="type"/>.
+    /// </summary>
+    public static bool TryGet(Type type, out ITypeInfo? typeInfo)
+    {
+        return s_registry.TryGetValue(type, out typeInfo);
+    }
+}
+
+/// <summary>
+/// Pairs a factory function with its associated <see cref="ResolverLifetime"/>.
 /// </summary>
 public readonly record struct Resolver
 {
@@ -453,13 +500,23 @@ public sealed class Container : IDisposable
     }
 }
 
+/// <summary>
+/// Marks a constructor, method, field, or property for dependency injection.
+/// Can also be applied to parameters to specify a label for named resolution.
+/// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Parameter | AttributeTargets.Field | AttributeTargets.Property)]
 public sealed class InjectAttribute : Attribute
 {
+    /// <summary>Optional label type for named/keyed resolution.</summary>
     public Type? Label { get; }
     public InjectAttribute(Type? label = null) => Label = label;
 }
 
+/// <summary>
+/// Marker interface for typed labels used in named/keyed dependency resolution.
+/// Implement this on a label type to associate it with a contract type <typeparamref name="T"/>.
+/// </summary>
+/// <typeparam name="T">The contract type this label applies to, or a generic parameter for untyped labels.</typeparam>
 // ReSharper disable once UnusedTypeParameter
 #pragma warning disable CA1040
 public interface ILabel<T> { }
@@ -479,7 +536,8 @@ public enum ResolverLifetime
 }
 
 /// <summary>
-/// Fluent builder for configuring type registrations.
+/// Final-stage fluent builder for binding a resolved type to contract types.
+/// Reached after lifetime has been chosen (or defaulted to transient).
 /// </summary>
 public readonly ref struct ResolverBuilder
 {
@@ -573,7 +631,8 @@ public readonly ref struct ResolverBuilder
 }
 
 /// <summary>
-/// Builder for configuring the lifetime scope of registered types.
+/// Mid-stage fluent builder for selecting lifetime scope after <see cref="WithBuilder.With(object[])"/> overrides.
+/// Supports <see cref="Transient"/>, <see cref="Singleton"/>, and <see cref="Scoped"/> lifetimes.
 /// </summary>
 public readonly ref struct LifetimeBuilder
 {
@@ -703,7 +762,8 @@ public readonly ref struct LifetimeBuilder
 }
 
 /// <summary>
-/// Builder for registering types with specific dependency instances.
+/// Entry-point fluent builder returned by <see cref="Container.Register{T}()"/>.
+/// Supports overriding dependencies via <see cref="With(object[])"/>, choosing lifetime, or binding directly.
 /// </summary>
 public readonly ref struct WithBuilder
 {
@@ -923,11 +983,15 @@ static class CircularCheck
 }
 
 /// <summary>
-/// Extensions for handling labeled/named type registrations.
+/// Constructs closed generic label types for named/keyed resolution.
+/// Validates that label types implement <see cref="ILabel{T}"/> correctly.
 /// </summary>
 #pragma warning disable IL2070, IL2055, IL3050 // Label type resolution is inherently runtime-dynamic
 static class LabelExtension
 {
+    /// <summary>
+    /// Creates a closed label type from an <see cref="ILabel{T}"/> implementation and a contract type.
+    /// </summary>
     public static Type CreateLabelType(this Type label, Type contractType)
     {
         if (label.BaseType != null) throw new ArgumentException($"label {label.FullName} cannot have base type", nameof(label));
@@ -943,12 +1007,16 @@ static class LabelExtension
 #pragma warning restore IL2070, IL2055, IL3050
 
 /// <summary>
-/// Cache for compiled method invocation delegates.
+/// Caches parameter metadata and <see cref="InjectAttribute"/> labels for <see cref="MethodInfo"/> invocation.
+/// Used by <see cref="Container.CallFunc{T}"/> and <see cref="Container.CallAction{T}"/> for runtime delegate injection.
 /// </summary>
 static class MethodInfoCache
 {
     private static readonly ConcurrentDictionary<MethodInfo, (Func<object?, object?[]?, object?>, ParameterInfo[], Type?[])> s_compiled = new();
 
+    /// <summary>
+    /// Retrieves or caches the parameter info and labels for a method.
+    /// </summary>
     public static (Func<object?, object?[]?, object?> call, ParameterInfo[] parameters, Type?[] labels) Compile(this MethodInfo mi)
     {
         if (s_compiled.TryGetValue(mi, out var t)) return t;
@@ -958,6 +1026,9 @@ static class MethodInfoCache
         return (mi.Invoke, parameters, labels);
     }
 
+    /// <summary>
+    /// Invokes a method with parameters resolved from the container.
+    /// </summary>
     public static object? Invoke(this MethodInfo mi, object? target, Container container)
     {
         var (call, parameters, labels) = mi.Compile();
@@ -982,8 +1053,8 @@ public static class GenericExtension
 #pragma warning disable IL2060, IL3050 // Open generic registration is inherently runtime-dynamic
     public static WithBuilder RegisterGeneric(this Container container, Type genericType, MethodInfo creator)
     {
-        ArgumentNullException.ThrowIfNull(genericType);
-        ArgumentNullException.ThrowIfNull(creator);
+        if (genericType is null) throw new ArgumentNullException(nameof(genericType));
+        if (creator is null) throw new ArgumentNullException(nameof(creator));
         if (!genericType.IsGenericType) throw new ArgumentException($"{genericType.FullName} is not a generic type", nameof(genericType));
         if (!creator.IsStatic) throw new ArgumentException($"{creator.Name} is not static", nameof(creator));
         if (!creator.ReturnType.IsGenericType || creator.ReturnType.GetGenericTypeDefinition() != genericType) throw new ArgumentException($"the return type ({creator.ReturnType}) of {creator.Name} require to be the same as {nameof(genericType)} ({genericType})", nameof(creator));
