@@ -225,7 +225,6 @@ namespace OneShot.Test
             Assert.AreEqual(container.Resolve<TypeA>(), container.Instantiate<DefaultConstructor>().TypeA);
         }
 
-        [Injectable]
         internal class IntArrayClass
         {
             public readonly int IntValue;
@@ -301,8 +300,8 @@ namespace OneShot.Test
             container.InjectAll(instance);
         }
 
-        [Injectable] internal class TypeAA : TypeA {}
-        [Injectable] internal class TypeAAA : TypeAA {}
+        internal class TypeAA : TypeA {}
+        internal class TypeAAA : TypeAA {}
 
         [Test]
         public void should_register_and_resolve_by_bases()

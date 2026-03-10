@@ -73,18 +73,82 @@ public class Service
     }
 
     [Test]
-    public void should_generate_for_injectable_attribute()
+    public void should_generate_for_register_call_site()
     {
         var source = @"
 using OneShot;
 
-[Injectable]
 public class SimpleService { }
-";
+
+public class Setup
+{
+    void Configure(Container c)
+    {
+        c.Register<SimpleService>();
+    }
+}";
         var result = RunGenerator(source);
         Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
         var text = result.GeneratedTrees[0].GetText().ToString();
         Assert.That(text, Does.Contain("new global::SimpleService()"));
+    }
+
+    [Test]
+    public void should_generate_for_instantiate_call_site()
+    {
+        var source = @"
+using OneShot;
+
+public class SimpleService { }
+
+public class Setup
+{
+    void Configure(Container c)
+    {
+        c.Instantiate<SimpleService>();
+    }
+}";
+        var result = RunGenerator(source);
+        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var text = result.GeneratedTrees[0].GetText().ToString();
+        Assert.That(text, Does.Contain("new global::SimpleService()"));
+    }
+
+    [Test]
+    public void should_not_generate_for_register_with_factory()
+    {
+        var source = @"
+using OneShot;
+
+public class SimpleService { }
+
+public class Setup
+{
+    void Configure(Container c)
+    {
+        c.Register<SimpleService>((container, type) => new SimpleService());
+    }
+}";
+        var result = RunGenerator(source);
+        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void should_deduplicate_across_multiple_call_sites()
+    {
+        var source = @"
+using OneShot;
+
+public class SimpleService { }
+
+public class Setup
+{
+    void A(Container c) { c.Register<SimpleService>(); }
+    void B(Container c) { c.Register<SimpleService>(); }
+    void C(Container c) { c.Instantiate<SimpleService>(); }
+}";
+        var result = RunGenerator(source);
+        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
     }
 
     [Test]
@@ -150,12 +214,16 @@ using OneShot;
 
 public class Dep { }
 
-[Injectable]
 public class Service
 {
     public Dep Dep { get; }
     public int Value { get; }
     public Service(Dep dep, int value = 42) { Dep = dep; Value = value; }
+}
+
+public class Setup
+{
+    void Configure(Container c) { c.Register<Service>(); }
 }";
         var result = RunGenerator(source);
         Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
@@ -188,22 +256,12 @@ public class Outer
         var source = @"
 using OneShot;
 
-[Injectable]
 public abstract class AbstractService { }
-";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
-    }
 
-    [Test]
-    public void should_skip_generic_type_definitions()
-    {
-        var source = @"
-using OneShot;
-
-[Injectable]
-public class GenericService<T> { }
-";
+public class Setup
+{
+    void Configure(Container c) { c.Register<AbstractService>(); }
+}";
         var result = RunGenerator(source);
         Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
     }

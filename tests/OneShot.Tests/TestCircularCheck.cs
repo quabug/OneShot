@@ -4,14 +4,14 @@ namespace OneShot.Test
 {
     public class TestCircularCheck
     {
-        [Injectable] internal class A
+        internal class A
         {
             public A(B b)
             {
             }
         }
 
-        [Injectable] internal class B
+        internal class B
         {
             public B(A a)
             {
@@ -28,21 +28,21 @@ namespace OneShot.Test
             Assert.Catch<CircularDependencyException>(() => container.Resolve<B>());
         }
 
-        [Injectable] internal class C
+        internal class C
         {
             public C(D _)
             {
             }
         }
 
-        [Injectable] internal class D
+        internal class D
         {
             public D(E _)
             {
             }
         }
 
-        [Injectable] internal class E
+        internal class E
         {
             public E(C _)
             {

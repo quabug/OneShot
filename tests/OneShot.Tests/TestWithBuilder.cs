@@ -5,9 +5,9 @@ namespace OneShot.Test
     public class TestWithBuilder
     {
         internal interface InterfaceA {}
-        [Injectable] internal class TypeA : InterfaceA {}
+        internal class TypeA : InterfaceA {}
 
-        [Injectable] internal class Foo
+        internal class Foo
         {
             public int A;
             public float B;

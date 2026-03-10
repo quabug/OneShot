@@ -252,7 +252,7 @@ public sealed class Container : IDisposable
     public WithBuilder Register(Type type)
     {
         if (!TypeInfoRegistry.TryGet(type, out var typeInfo))
-            throw new NotSupportedException($"Type {type} has no generated type info. Add [Injectable] or [Inject] attribute to enable source generation.");
+            throw new NotSupportedException($"Type {type} has no generated type info. Ensure it is used via Register<T>() or Instantiate<T>(), or has [Inject] on a member.");
 
         return Register(type, CreateInstanceFromTypeInfo);
 
@@ -388,7 +388,7 @@ public sealed class Container : IDisposable
     public object Instantiate(Type type)
     {
         if (!TypeInfoRegistry.TryGet(type, out var typeInfo))
-            throw new NotSupportedException($"Type {type} has no generated type info. Add [Injectable] or [Inject] attribute to enable source generation.");
+            throw new NotSupportedException($"Type {type} has no generated type info. Ensure it is used via Register<T>() or Instantiate<T>(), or has [Inject] on a member.");
         return typeInfo!.Create(this);
     }
 
@@ -459,14 +459,6 @@ public sealed class InjectAttribute : Attribute
     public Type? Label { get; }
     public InjectAttribute(Type? label = null) => Label = label;
 }
-
-/// <summary>
-/// Marks a type for source generation of ITypeInfo metadata.
-/// Use on types that use the default constructor (no [Inject] attribute needed).
-/// Types with [Inject] on any member are automatically discovered without this attribute.
-/// </summary>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
-public sealed class InjectableAttribute : Attribute { }
 
 // ReSharper disable once UnusedTypeParameter
 #pragma warning disable CA1040

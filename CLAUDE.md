@@ -52,7 +52,7 @@ benchmarks/OneShot.Benchmarks/ # BenchmarkDotNet (net10.0)
 
 - **Registration Types**: Instance, Transient, Singleton, Scoped, Factory
 - **Injection Methods**: Constructor (primary), Field, Property, Method via `[Inject]`
-- **Source Generation Triggers**: `[Inject]` on any member, or `[Injectable]` on the class
+- **Source Generation Triggers**: `[Inject]` on any member, or `Register<T>()` / `Instantiate<T>()` call sites on `Container`
 - **Advanced Features**: Circular dependency detection, labeled dependencies, array resolution, open generic registration
 
 ### What stays reflection-based

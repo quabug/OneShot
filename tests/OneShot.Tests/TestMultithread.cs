@@ -111,19 +111,28 @@ namespace OneShot.Test
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051")]
+        static void _SourceGenManifest(Container c)
+        {
+            c.Register<A>(); c.Register<B>(); c.Register<C>(); c.Register<D>();
+            c.Register<E>(); c.Register<F>(); c.Register<G>(); c.Register<H>();
+            c.Register<AB>(); c.Register<ABC>(); c.Register<ABCD>();
+            c.Register<BCD>(); c.Register<FG>(); c.Register<CDEF>();
+        }
+
         internal interface IA {}
         internal interface IB {}
         internal interface IC {}
-        [Injectable] internal class A : IA {}
-        [Injectable] internal class B : IB {}
-        [Injectable] internal class C : IC {}
-        [Injectable] internal class D : IA, IB, IC {}
-        [Injectable] internal class E : C, IA, IB {}
-        [Injectable] internal class F : E {}
-        [Injectable] internal class G : A, IC {}
-        [Injectable] internal class H : B, IA {}
+        internal class A : IA {}
+        internal class B : IB {}
+        internal class C : IC {}
+        internal class D : IA, IB, IC {}
+        internal class E : C, IA, IB {}
+        internal class F : E {}
+        internal class G : A, IC {}
+        internal class H : B, IA {}
 
-        [Injectable] internal class AB : IA
+        internal class AB : IA
         {
             public AB(A a, B b)
             {
@@ -132,7 +141,7 @@ namespace OneShot.Test
             }
         }
 
-        [Injectable] internal class ABC
+        internal class ABC
         {
             public ABC(A a, B b, C c)
             {
@@ -142,7 +151,7 @@ namespace OneShot.Test
             }
         }
 
-        [Injectable] internal class ABCD
+        internal class ABCD
         {
             public ABCD(A a, B b, C c, D d)
             {
@@ -153,7 +162,7 @@ namespace OneShot.Test
             }
         }
 
-        [Injectable] internal class BCD : IA
+        internal class BCD : IA
         {
             public BCD(B b, C c, D d)
             {
@@ -163,7 +172,7 @@ namespace OneShot.Test
             }
         }
 
-        [Injectable] internal class FG : IB, IC
+        internal class FG : IB, IC
         {
             public FG(F f, G g)
             {
@@ -172,7 +181,7 @@ namespace OneShot.Test
             }
         }
 
-        [Injectable] internal class CDEF : IB, IC
+        internal class CDEF : IB, IC
         {
             public CDEF(C c, D d, E e, F f)
             {

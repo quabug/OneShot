@@ -6,12 +6,10 @@ namespace OneShot.Test
     {
     }
 
-    [Injectable]
     internal class TypeA : InterfaceA
     {
     }
 
-    [Injectable]
     internal class DefaultConstructor
     {
         public readonly TypeA TypeA;
@@ -29,7 +27,6 @@ namespace OneShot.Test
         public InjectConstructor(DefaultConstructor defaultConstructor) => TypeA = null;
     }
 
-    [Injectable]
     internal class ConstructorWithDefaultParameter
     {
         public readonly TypeA TypeA;
@@ -42,7 +39,6 @@ namespace OneShot.Test
         }
     }
 
-    [Injectable]
     internal class ComplexClass
     {
         public readonly TypeA A;
@@ -64,14 +60,12 @@ namespace OneShot.Test
         }
     }
     
-    [Injectable]
     internal class Disposable : IDisposable
     {
         public int DisposedCount = 0;
         public void Dispose() => DisposedCount++;
     }
 
-    [Injectable]
     internal class InjectInt
     {
         public int Value;

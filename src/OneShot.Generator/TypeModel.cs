@@ -178,7 +178,8 @@ internal static class TypeModelExtractor
 {
     private static readonly SymbolDisplayFormat s_fqn = SymbolDisplayFormat.FullyQualifiedFormat;
 
-    public static TypeModel? Extract(INamedTypeSymbol type, Compilation compilation)
+    public static TypeModel? Extract(INamedTypeSymbol type, Compilation compilation,
+        bool requireAttributeTrigger = true)
     {
         if (!IsEffectivelyAccessible(type)) return null;
         if (type.IsAbstract || type.TypeKind == TypeKind.Interface) return null;
@@ -187,11 +188,11 @@ internal static class TypeModelExtractor
         var injectAttr = compilation.GetTypeByMetadataName("OneShot.InjectAttribute");
         if (injectAttr is null) return null;
 
-        var injectableAttr = compilation.GetTypeByMetadataName("OneShot.InjectableAttribute");
-        bool hasInjectable = injectableAttr != null &&
-            type.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, injectableAttr));
-        bool hasInject = HasAnyInjectAttribute(type, injectAttr);
-        if (!hasInjectable && !hasInject) return null;
+        if (requireAttributeTrigger)
+        {
+            bool hasInject = HasAnyInjectAttribute(type, injectAttr);
+            if (!hasInject) return null;
+        }
 
         var constructor = ExtractConstructor(type, injectAttr);
         var fields = ExtractFields(type, injectAttr);

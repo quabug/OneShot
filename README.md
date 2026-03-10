@@ -1,26 +1,23 @@
 [![NuGet Version](https://img.shields.io/nuget/v/OneShot)](https://www.nuget.org/packages/OneShot/)
-[![openupm](https://img.shields.io/npm/v/com.quabug.one-shot-injection?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.quabug.one-shot-injection/)
 
 # OneShot Dependency Injection
 
-A lightweight, high-performance, [single-file](Packages/com.quabug.one-shot-injection/OneShot.cs) dependency injection container for Unity and .NET.
+A lightweight, high-performance dependency injection container for .NET with source generator support for AOT-friendly, zero-reflection DI.
 
 ## Features
 
-- 🎯 **Single File** - Entire DI container in one file for easy copy-paste distribution
-- ⚡ **High Performance** - Expression compilation for fast instance creation (with IL2CPP fallback)
-- 🔒 **Thread Safe** - All public APIs are thread-safe using concurrent collections
-- 🎮 **Unity Integration** - Built-in MonoBehaviour components and scene injection
-- 🏗️ **Hierarchical Containers** - Parent-child relationships with proper disposal chains
-- 🔧 **Flexible Registration** - Instance, Transient, Singleton, Scoped, and Factory patterns
-- 🏷️ **Type-Safe Labels** - Support for labeled dependencies with compile-time safety
-- 📦 **Generic Support** - Full open generic type registration and resolution
+- **Source Generator** - Compile-time code generation replaces runtime reflection for NativeAOT compatibility
+- **High Performance** - Zero-reflection instance creation via generated `ITypeInfo` implementations
+- **Thread Safe** - All public APIs are thread-safe using concurrent collections
+- **Hierarchical Containers** - Parent-child relationships with proper disposal chains
+- **Flexible Registration** - Instance, Transient, Singleton, Scoped, and Factory patterns
+- **Type-Safe Labels** - Support for labeled dependencies with compile-time safety
+- **Generic Support** - Open generic type registration and resolution
 
 ## Requirements
 
-- **Unity**: 2022.3 or higher
-- **.NET**: .NET Standard 2.1 or higher
-- **C#**: 10.0 or higher
+- **.NET**: 10.0 or higher
+- **C#**: 12.0 or higher
 
 ## Basic Concept of DI
 - [How YOU can Learn Dependency Injection in .NET Core and C#](https://softchris.github.io/pages/dotnet-di.html)
@@ -28,16 +25,6 @@ A lightweight, high-performance, [single-file](Packages/com.quabug.one-shot-inje
 
 ## Installation
 
-### Option 1: Single File (Simplest)
-Copy and paste [OneShot.cs](Packages/com.quabug.one-shot-injection/OneShot.cs) into your project.
-
-### Option 2: Unity Package Manager
-Install via [OpenUPM](https://openupm.com/packages/com.quabug.one-shot-injection):
-```bash
-openupm add com.quabug.one-shot-injection
-```
-
-### Option 3: NuGet Package (.NET)
 Install via [NuGet](https://www.nuget.org/packages/OneShot/):
 ```bash
 dotnet add package OneShot
@@ -60,9 +47,46 @@ container.RegisterInstance<ILogger>(new ConsoleLogger()).AsSelf();
 var repository = container.Resolve<UserRepository>();
 ```
 
+## Source Generation
+
+OneShot uses a C# incremental source generator to emit `ITypeInfo` implementations at compile time, replacing runtime reflection entirely. Types are discovered for generation through two mechanisms:
+
+### Call-Site Scanning
+Types used via `Register<T>()` or `Instantiate<T>()` are automatically discovered — no attributes required:
+
+```csharp
+// Source generator detects these call sites and generates ITypeInfo for MyService
+container.Register<MyService>().Singleton().AsSelf();
+container.Instantiate<MyService>();
+```
+
+### `[Inject]` Attribute
+Types with `[Inject]` on any member (field, property, method, constructor, or parameter) are also discovered:
+
+```csharp
+class MyService
+{
+    [Inject] public ILogger Logger;  // Triggers source generation for MyService
+}
+```
+
+### Runtime Registration
+When using runtime `Register(Type)` with a variable type, the source generator cannot discover the type from call sites. Ensure the type is referenced via `Register<T>()` or `Instantiate<T>()` somewhere (even in a never-called method), or has `[Inject]` on a member:
+
+```csharp
+// This alone won't trigger source generation:
+container.Register(someType);
+
+// Add a manifest method to ensure generation:
+static void _SourceGenManifest(Container c)
+{
+    c.Register<MyType>();  // Triggers generation even though never called
+}
+```
+
 ## Core Usage
 
-> 📚 See [Test Cases](Assets/Tests) for comprehensive examples
+> See [Test Cases](tests/OneShot.Tests) for comprehensive examples
 
 ### Container Management
 
@@ -81,7 +105,6 @@ using (var scope = container.BeginScope())
 
 // Performance Options
 container.EnableCircularCheck = false; // Disable circular dependency checking (default: true in DEBUG)
-container.PreAllocateArgumentArrayOnRegister = true; // Pre-allocate for performance (default: false)
 container.PreventDisposableTransient = true; // Prevent memory leaks (default: false)
 ```
 
@@ -194,78 +217,6 @@ class Service
 }
 ```
 
-## Unity Integration
-
-### ContainerComponent
-
-```csharp
-// Attach container to GameObject
-var containerComponent = gameObject.AddComponent<ContainerComponent>();
-containerComponent.Value = container;
-
-// Auto-disposal on GameObject destruction
-```
-
-### Injector Component
-
-```csharp
-// Add Injector to GameObject for automatic injection
-var injector = gameObject.AddComponent<Injector>();
-injector.InjectionPhase = InjectionPhase.Awake; // or Start, Update, LateUpdate, Manual
-
-// Components on this GameObject will be injected automatically
-```
-
-### Scene Injection
-
-```csharp
-// Inject all eligible components in scene
-container.InjectScene();
-
-// Prevent injection on specific GameObjects
-gameObject.AddComponent<StopInjection>();
-```
-
-### Installer Pattern
-
-```csharp
-public class GameInstaller : MonoBehaviour, IInstaller
-{
-    public void Install(Container container)
-    {
-        container.Register<PlayerController>().Singleton().AsSelf();
-        container.Register<GameManager>().Scoped().AsInterfaces();
-        container.Register<AudioSystem>().Singleton().AsBases();
-    }
-}
-```
-
-## Performance Optimization
-
-### Configuration Options
-
-```csharp
-// For high-frequency resolution scenarios
-container.PreAllocateArgumentArrayOnRegister = true;
-
-// Disable circular dependency checking in production
-#if !DEBUG
-container.EnableCircularCheck = false;
-#endif
-
-// Prevent memory leaks from disposable transients
-container.PreventDisposableTransient = true;
-```
-
-### IL2CPP Compatibility
-
-OneShot automatically detects IL2CPP and falls back to reflection-based instantiation when expression compilation is unavailable.
-
-```csharp
-// Works seamlessly in both Mono and IL2CPP
-container.Register<Service>().Singleton().AsSelf();
-```
-
 ## Advanced Features
 
 ### Circular Dependency Detection
@@ -293,38 +244,35 @@ container.Dispose(); // Disposes all child containers and registered IDisposable
 ## Best Practices
 
 1. **Prefer Constructor Injection** - Most explicit and testable
-2. **Use Scoped for Request/Frame Lifetime** - Ideal for Unity Update loops
+2. **Use Scoped for Request/Frame Lifetime** - Ideal for per-request isolation
 3. **Avoid Disposable Transients** - Can cause memory leaks
 4. **Use Labels for Multiple Implementations** - Type-safe alternative to string keys
 5. **Create Child Containers for Isolation** - Test scenarios or modular features
 
-## Benchmarks
+## Development
 
-OneShot is optimized for performance. Run benchmarks:
-
+### Build
 ```bash
-cd .NET/
-dotnet run -c Release --project Benchmark
+dotnet build
 ```
 
-## Testing
-
-### .NET Tests
+### Test
 ```bash
-cd .NET/
-dotnet test --no-build --verbosity normal
+dotnet test
 ```
 
-### Unity Tests
-Run via Unity Test Runner in the Unity Editor
+### Benchmarks
+```bash
+dotnet run -c Release --project benchmarks/OneShot.Benchmarks
+```
 
 ## Contributing
 
 Contributions welcome! Please ensure:
-- All tests pass on both Mono and IL2CPP
+- All tests pass
 - No compiler warnings (warnings as errors enabled)
 - Thread safety maintained
-- Single-file philosophy preserved
+- NativeAOT compatibility preserved (no runtime reflection in new code)
 
 ## License
 
