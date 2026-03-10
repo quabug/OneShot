@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/OneShot.Benchmarks/OneShot.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/OneShot.Generator/OneShot.Generator.csproj" />
+    <Project Path="src/OneShot/OneShot.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OneShot.Generator.Tests/OneShot.Generator.Tests.csproj" />
+    <Project Path="tests/OneShot.Tests/OneShot.Tests.csproj" />
+  </Folder>
+</Solution>
