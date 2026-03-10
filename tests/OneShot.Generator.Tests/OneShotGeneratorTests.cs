@@ -1,10 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using NUnit.Framework;
 
 namespace OneShot.Generator.Tests;
 
-[TestFixture]
 public class OneShotGeneratorTests
 {
     private static CSharpCompilation CreateCompilation(string source)
@@ -35,7 +33,7 @@ public class OneShotGeneratorTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
-    private static GeneratorDriverRunResult RunGenerator(string source)
+    private static async Task<GeneratorDriverRunResult> RunGenerator(string source)
     {
         var compilation = CreateCompilation(source);
         var generator = new OneShotGenerator();
@@ -45,13 +43,13 @@ public class OneShotGeneratorTests
 
         // Verify no generator errors
         var generatorDiagnostics = diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
-        Assert.That(generatorDiagnostics, Is.Empty, "Generator produced errors");
+        await Assert.That(generatorDiagnostics).IsEmpty();
 
         return driver.GetRunResult();
     }
 
     [Test]
-    public void should_generate_for_inject_constructor()
+    public async Task should_generate_for_inject_constructor()
     {
         var source = @"
 using OneShot;
@@ -63,17 +61,17 @@ public class Service
     [Inject] public Service(Dep dep) => Dep = dep;
     public Service() { }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("container.Resolve<global::Dep>()"));
-        Assert.That(text, Does.Contain("new global::Service("));
-        Assert.That(text, Does.Contain("TypeInfoRegistry.Register"));
-        Assert.That(text, Does.Contain("ModuleInitializer"));
+        await Assert.That(text).Contains("container.Resolve<global::Dep>()");
+        await Assert.That(text).Contains("new global::Service(");
+        await Assert.That(text).Contains("TypeInfoRegistry.Register");
+        await Assert.That(text).Contains("ModuleInitializer");
     }
 
     [Test]
-    public void should_generate_for_register_call_site()
+    public async Task should_generate_for_register_call_site()
     {
         var source = @"
 using OneShot;
@@ -87,14 +85,14 @@ public class Setup
         c.Register<SimpleService>();
     }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("new global::SimpleService()"));
+        await Assert.That(text).Contains("new global::SimpleService()");
     }
 
     [Test]
-    public void should_generate_for_instantiate_call_site()
+    public async Task should_generate_for_instantiate_call_site()
     {
         var source = @"
 using OneShot;
@@ -108,14 +106,14 @@ public class Setup
         c.Instantiate<SimpleService>();
     }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("new global::SimpleService()"));
+        await Assert.That(text).Contains("new global::SimpleService()");
     }
 
     [Test]
-    public void should_not_generate_for_register_with_factory()
+    public async Task should_not_generate_for_register_with_factory()
     {
         var source = @"
 using OneShot;
@@ -129,12 +127,12 @@ public class Setup
         c.Register<SimpleService>((container, type) => new SimpleService());
     }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
     }
 
     [Test]
-    public void should_deduplicate_across_multiple_call_sites()
+    public async Task should_deduplicate_across_multiple_call_sites()
     {
         var source = @"
 using OneShot;
@@ -147,12 +145,12 @@ public class Setup
     void B(Container c) { c.Register<SimpleService>(); }
     void C(Container c) { c.Instantiate<SimpleService>(); }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
     }
 
     [Test]
-    public void should_generate_for_inject_fields_and_properties()
+    public async Task should_generate_for_inject_fields_and_properties()
     {
         var source = @"
 using OneShot;
@@ -163,15 +161,15 @@ public class Service
     [Inject] public Dep FieldDep;
     [Inject] public Dep PropDep { get; set; }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("target.FieldDep = container.Resolve<global::Dep>()"));
-        Assert.That(text, Does.Contain("target.PropDep = container.Resolve<global::Dep>()"));
+        await Assert.That(text).Contains("target.FieldDep = container.Resolve<global::Dep>()");
+        await Assert.That(text).Contains("target.PropDep = container.Resolve<global::Dep>()");
     }
 
     [Test]
-    public void should_generate_for_inject_method()
+    public async Task should_generate_for_inject_method()
     {
         var source = @"
 using OneShot;
@@ -181,15 +179,15 @@ public class Service
 {
     [Inject] public void Init(Dep dep) { }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("target.Init("));
-        Assert.That(text, Does.Contain("container.Resolve<global::Dep>()"));
+        await Assert.That(text).Contains("target.Init(");
+        await Assert.That(text).Contains("container.Resolve<global::Dep>()");
     }
 
     [Test]
-    public void should_handle_labeled_parameters()
+    public async Task should_handle_labeled_parameters()
     {
         var source = @"
 using OneShot;
@@ -200,14 +198,14 @@ public class Service
 {
     [Inject] public Service([Inject(typeof(MyLabel))] Dep dep) { }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("typeof(global::MyLabel)"));
+        await Assert.That(text).Contains("typeof(global::MyLabel)");
     }
 
     [Test]
-    public void should_handle_default_parameters()
+    public async Task should_handle_default_parameters()
     {
         var source = @"
 using OneShot;
@@ -225,16 +223,16 @@ public class Setup
 {
     void Configure(Container c) { c.Register<Service>(); }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("container.Resolve<global::Dep>()"));
-        Assert.That(text, Does.Contain("TryResolve"));
-        Assert.That(text, Does.Contain("42"));
+        await Assert.That(text).Contains("container.Resolve<global::Dep>()");
+        await Assert.That(text).Contains("TryResolve");
+        await Assert.That(text).Contains("42");
     }
 
     [Test]
-    public void should_skip_private_nested_types()
+    public async Task should_skip_private_nested_types()
     {
         var source = @"
 using OneShot;
@@ -246,12 +244,12 @@ public class Outer
         [Inject] public void Init() { }
     }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
     }
 
     [Test]
-    public void should_skip_abstract_types()
+    public async Task should_skip_abstract_types()
     {
         var source = @"
 using OneShot;
@@ -262,12 +260,12 @@ public class Setup
 {
     void Configure(Container c) { c.Register<AbstractService>(); }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
     }
 
     [Test]
-    public void should_generate_unsafe_accessor_for_private_setter()
+    public async Task should_generate_unsafe_accessor_for_private_setter()
     {
         var source = @"
 using OneShot;
@@ -277,15 +275,15 @@ public class Service
 {
     [Inject] public Dep Prop { get; private set; }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("UnsafeAccessor"));
-        Assert.That(text, Does.Contain("UnsafeSet_Prop"));
+        await Assert.That(text).Contains("UnsafeAccessor");
+        await Assert.That(text).Contains("UnsafeSet_Prop");
     }
 
     [Test]
-    public void should_include_interfaces_and_base_types()
+    public async Task should_include_interfaces_and_base_types()
     {
         var source = @"
 using OneShot;
@@ -296,22 +294,22 @@ public class Service : BaseService, IService
 {
     [Inject] public Service() { }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(1));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
         var text = result.GeneratedTrees[0].GetText().ToString();
-        Assert.That(text, Does.Contain("typeof(global::IService)"));
-        Assert.That(text, Does.Contain("typeof(global::BaseService)"));
+        await Assert.That(text).Contains("typeof(global::IService)");
+        await Assert.That(text).Contains("typeof(global::BaseService)");
     }
 
     [Test]
-    public void should_not_generate_for_types_without_inject()
+    public async Task should_not_generate_for_types_without_inject()
     {
         var source = @"
 public class PlainService
 {
     public PlainService(int value) { }
 }";
-        var result = RunGenerator(source);
-        Assert.That(result.GeneratedTrees.Length, Is.EqualTo(0));
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
     }
 }

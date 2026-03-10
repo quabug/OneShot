@@ -1,9 +1,8 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
-using NUnit.Framework;
 
 namespace OneShot.Test
 {
@@ -12,27 +11,13 @@ namespace OneShot.Test
         long _threadCount = 100;
         private Type[] _types;
 
-        [SetUp]
+        [Before(HookType.Test)]
         public void SetUp()
         {
             _types = GetType().GetNestedTypes(BindingFlags.NonPublic)
                 .Where(type => !type.IsInterface && !type.Name.StartsWith("<", StringComparison.Ordinal))
                 .ToArray();
         }
-        //
-        // [Test]
-        // public void should_able_to_register_()
-        // {
-        //     var container = new Container();
-        //     container.Register<A>().Singleton().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<B>().Singleton().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<C>().Singleton().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<D>().Singleton().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<F>().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<E>().AsSelf().AsBases().AsInterfaces();
-        //     container.Register<CDEF>().AsSelf().AsBases().AsInterfaces();
-        //     container.Resolve<CDEF>();
-        // }
 
         [Test]
         public void should_able_to_register_and_resolve_on_different_thread()

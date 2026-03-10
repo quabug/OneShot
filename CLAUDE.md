@@ -12,17 +12,15 @@ OneShot is a lightweight dependency injection container for .NET with source gen
 # Build everything
 dotnet build
 
-# Run all tests
-dotnet test
-
-# Run specific test
-dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"
-
-# Run generator tests only
-dotnet test --filter "FullyQualifiedName~Generator"
+# Run all tests (TUnit, via dotnet run)
+dotnet run --project tests/OneShot.Tests
+dotnet run --project tests/OneShot.Generator.Tests
 
 # Run benchmarks
 dotnet run -c Release --project benchmarks/OneShot.Benchmarks
+
+# Publish NativeAOT binary
+dotnet publish tests/OneShot.Tests -c Release
 
 # Pack NuGet packages
 dotnet pack -c Release -o out
@@ -35,8 +33,8 @@ dotnet pack -c Release -o out
 ```
 src/OneShot/                  # Runtime library (NuGet: OneShot), net10.0, NativeAOT compatible
 src/OneShot.Generator/        # Source generator (NuGet: OneShot.Generator), netstandard2.0
-tests/OneShot.Tests/          # Unit tests (net10.0, NUnit 4.x)
-tests/OneShot.Generator.Tests/ # Generator snapshot tests (net10.0)
+tests/OneShot.Tests/          # Unit tests (net10.0, TUnit, NativeAOT publishable)
+tests/OneShot.Generator.Tests/ # Generator snapshot tests (net10.0, TUnit)
 benchmarks/OneShot.Benchmarks/ # BenchmarkDotNet (net10.0)
 ```
 

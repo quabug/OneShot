@@ -12,16 +12,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
-        global-json-file: .NET/global.json
+        dotnet-version: '10.0.x'
     - name: Pack and Publish
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       run: |
-        cd .NET
         dotnet restore
-        dotnet pack -c Release -o out ./OneShotInjection
+        dotnet pack -c Release -o out
         dotnet nuget push ./out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json

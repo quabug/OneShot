@@ -1,5 +1,3 @@
-using NUnit.Framework;
-
 namespace OneShot.Test
 {
     public class TestCircularCheck
@@ -19,13 +17,13 @@ namespace OneShot.Test
         }
 
         [Test]
-        public void should_throw_on_directly_circular_dependency()
+        public async Task should_throw_on_directly_circular_dependency()
         {
             var container = new Container();
             container.Register<A>().AsSelf();
             container.Register<B>().AsSelf();
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<A>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<B>());
+            await Assert.That(() => container.Resolve<A>()).ThrowsExactly<CircularDependencyException>();
+            await Assert.That(() => container.Resolve<B>()).ThrowsExactly<CircularDependencyException>();
         }
 
         internal class C
@@ -50,15 +48,15 @@ namespace OneShot.Test
         }
 
         [Test]
-        public void should_throw_on_indirectly_circular_dependency()
+        public async Task should_throw_on_indirectly_circular_dependency()
         {
             var container = new Container();
             container.Register<C>().AsSelf();
             container.Register<D>().AsSelf();
             container.Register<E>().AsSelf();
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<C>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<D>());
-            Assert.Catch<CircularDependencyException>(() => container.Resolve<E>());
+            await Assert.That(() => container.Resolve<C>()).ThrowsExactly<CircularDependencyException>();
+            await Assert.That(() => container.Resolve<D>()).ThrowsExactly<CircularDependencyException>();
+            await Assert.That(() => container.Resolve<E>()).ThrowsExactly<CircularDependencyException>();
         }
     }
 }
