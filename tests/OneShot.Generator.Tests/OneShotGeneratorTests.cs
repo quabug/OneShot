@@ -16,8 +16,12 @@ public class OneShotGeneratorTests
             MetadataReference.CreateFromFile(typeof(Container).Assembly.Location),
         };
 
-        // Add runtime assemblies needed for compilation
+        // Add runtime assemblies needed for compilation.
+        // netstandard.dll is required because OneShot.dll targets netstandard2.1 and forwards
+        // BCL types (Attribute, Type, ...) through netstandard. Without it, the semantic model
+        // fails to bind attribute base types and the generator silently emits nothing.
         var assemblyPath = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        references.Add(MetadataReference.CreateFromFile(Path.Combine(assemblyPath, "netstandard.dll")));
         references.Add(MetadataReference.CreateFromFile(Path.Combine(assemblyPath, "System.Runtime.dll")));
         references.Add(MetadataReference.CreateFromFile(Path.Combine(assemblyPath, "System.Collections.dll")));
         references.Add(MetadataReference.CreateFromFile(Path.Combine(assemblyPath, "System.Collections.Concurrent.dll")));

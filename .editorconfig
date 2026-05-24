@@ -644,3 +644,37 @@ dotnet_diagnostic.CA2231.severity = suggestion
 # [{**/Shared/**.cs,**/microsoft.extensions.hostfactoryresolver.sources/**.{cs,vb}}]
 # # IDE0005: Remove unused usings. Ignore for shared src files since imports for those depend on the projects in which they are included.
 # dotnet_diagnostic.IDE0005.severity = silent
+
+# Test code conventions: snake_case test names, throwaway fixtures, no ConfigureAwait noise.
+[{tests/**.cs,**/*.Tests/**.cs}]
+# CA1707: Identifiers should not contain underscores - test methods use snake_case by convention
+dotnet_diagnostic.CA1707.severity = none
+# CA1852: Seal internal types - test fixtures are throwaway types, sealing is noise
+dotnet_diagnostic.CA1852.severity = none
+# CA1812: Avoid uninstantiated internal classes - test fixtures are instantiated via DI/reflection in tests
+dotnet_diagnostic.CA1812.severity = none
+# CA1515: Make types internal - test fixtures may be public for cross-file use
+dotnet_diagnostic.CA1515.severity = none
+# CA2007: ConfigureAwait - tests run on no synchronization context
+dotnet_diagnostic.CA2007.severity = none
+# CA1822: Make member static - test methods are instance by convention
+dotnet_diagnostic.CA1822.severity = none
+# CA5394: Insecure randomness - tests use Random for deterministic fixtures
+dotnet_diagnostic.CA5394.severity = none
+# CA1861: Avoid constant arrays as arguments - test assertions frequently inline expected arrays
+dotnet_diagnostic.CA1861.severity = none
+# CA1849: Call async equivalent - sync Roslyn APIs are fine in snapshot tests
+dotnet_diagnostic.CA1849.severity = none
+# CA1840: Use Environment.CurrentManagedThreadId - thread tests intentionally use Thread.CurrentThread.ManagedThreadId
+dotnet_diagnostic.CA1840.severity = none
+# CA1865: Use char overload - low-value style fix in test code
+dotnet_diagnostic.CA1865.severity = none
+
+# Benchmark code conventions: BenchmarkDotNet drives instantiation and requires public types.
+[benchmarks/**.cs]
+# CA1515: Types can be internal - BenchmarkDotNet requires public benchmark classes
+dotnet_diagnostic.CA1515.severity = none
+# CA1812: Uninstantiated internal classes - benchmark fixtures are instantiated reflectively
+dotnet_diagnostic.CA1812.severity = none
+# CA1852: Seal internal types - benchmark fixtures are throwaway
+dotnet_diagnostic.CA1852.severity = none

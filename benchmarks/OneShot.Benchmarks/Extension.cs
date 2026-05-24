@@ -13,7 +13,7 @@ public static class Extension
             parameter.ParameterType)
         ).Cast<Expression>().ToArray();
         var @new = Expression.New(ci, args);
-        var lambda = Expression.Lambda(typeof(Func<object[], object>), Expression.Convert(@new, typeof(object)), @params);
-        return (Func<object[], object>) lambda.Compile();
+        var lambda = Expression.Lambda<Func<object[], object>>(Expression.Convert(@new, typeof(object)), @params);
+        return lambda.Compile();
     }
 }
