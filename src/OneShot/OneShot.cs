@@ -23,6 +23,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -220,6 +221,8 @@ public sealed class Container : IDisposable
     /// <param name="type">The type to resolve.</param>
     /// <param name="label">Optional label for named registrations.</param>
     /// <returns>The resolved instance or null if not found.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Dynamic code paths (CreateLabelType, Array.CreateInstance) only fire for label-typed or array-typed resolves; callers opting into those features accept the AOT requirement.")]
     public object? TryResolve(Type type, Type? label)
     {
         {
@@ -235,9 +238,7 @@ public sealed class Container : IDisposable
             var source = arrayArgument.ToArray();
             if (source.Length > 0)
             {
-#pragma warning disable IL3050 // Array.CreateInstance requires dynamic code
                 var dest = Array.CreateInstance(elementType, source.Length);
-#pragma warning restore IL3050
                 Array.Copy(source, dest, source.Length);
                 return dest;
             }
@@ -558,6 +559,8 @@ public readonly ref struct ResolverBuilder
     /// <param name="contractType">The contract/interface type to register as.</param>
     /// <param name="label">Optional label for named registrations.</param>
     /// <returns>This builder for method chaining.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "CreateLabelType (MakeGenericType) is only invoked when a non-null label is supplied; callers using labels accept the AOT requirement.")]
     public ResolverBuilder As(Type contractType, Type? label = null)
     {
         if (Container.PreventDisposableTransient && Resolver.Lifetime == ResolverLifetime.Transient && typeof(IDisposable).IsAssignableFrom(ConcreteType))
@@ -595,11 +598,11 @@ public readonly ref struct ResolverBuilder
     /// </summary>
     /// <param name="label">Optional label for named registrations.</param>
     /// <returns>This builder for method chaining.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "ConcreteType is a registered type that always has its interfaces preserved at runtime.")]
     public ResolverBuilder AsInterfaces(Type? label = null)
     {
-#pragma warning disable IL2075 // Type metadata is always available for registered concrete types
         foreach (var @interface in ConcreteType.GetInterfaces()) As(@interface, label);
-#pragma warning restore IL2075
         return this;
     }
 
@@ -897,11 +900,11 @@ public readonly ref struct WithBuilder
     /// </summary>
     /// <param name="label">Optional label for named registrations.</param>
     /// <returns>This builder for method chaining.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "ConcreteType is a registered type that always has its interfaces preserved at runtime.")]
     public WithBuilder AsInterfaces(Type? label = null)
     {
-#pragma warning disable IL2075
         foreach (var @interface in ConcreteType.GetInterfaces()) As(@interface, label);
-#pragma warning restore IL2075
         return this;
     }
 
@@ -992,6 +995,11 @@ static class LabelExtension
     /// <summary>
     /// Creates a closed label type from an <see cref="ILabel{T}"/> implementation and a contract type.
     /// </summary>
+    [RequiresDynamicCode("Constructs a closed generic label type at runtime via MakeGenericType.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Label types are user-defined and always have their ILabel<> interface preserved.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification = "Label types are user-defined; the generic type arguments are reachable at call sites.")]
     public static Type CreateLabelType(this Type label, Type contractType)
     {
         if (label.BaseType != null) throw new ArgumentException($"label {label.FullName} cannot have base type", nameof(label));
@@ -1050,7 +1058,8 @@ public static class GenericExtension
     /// <param name="genericType">The open generic type to register.</param>
     /// <param name="creator">Static factory method for creating instances.</param>
     /// <returns>A builder for further configuration.</returns>
-#pragma warning disable IL2060, IL3050 // Open generic registration is inherently runtime-dynamic
+    [RequiresDynamicCode("Open generic registration uses MakeGenericMethod at runtime.")]
+    [RequiresUnreferencedCode("Open generic registration discovers methods at runtime via reflection.")]
     public static WithBuilder RegisterGeneric(this Container container, Type genericType, MethodInfo creator)
     {
         if (genericType is null) throw new ArgumentNullException(nameof(genericType));
@@ -1064,10 +1073,13 @@ public static class GenericExtension
         if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Container) || parameters[1].ParameterType != typeof(Type)) throw new ArgumentException("creator must have exact parameter of (Container, Type)", nameof(creator));
         return container.Register(genericType, GetInstanceCreator(creator));
 
+        [UnconditionalSuppressMessage("Trimming", "IL2060",
+            Justification = "RegisterGeneric is annotated with [RequiresUnreferencedCode]; callers acknowledge the requirement.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "RegisterGeneric is annotated with [RequiresDynamicCode]; callers acknowledge the requirement.")]
         static Func<Container, Type, object> GetInstanceCreator(MethodInfo creator)
         {
             return (container, type) => creator.MakeGenericMethod(type.GetGenericArguments()).Invoke(null, new object[] { container, type })!;
         }
     }
-#pragma warning restore IL2060, IL3050
 }

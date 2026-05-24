@@ -1,8 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace OneShot.Test;
 
-#pragma warning disable IL2075, IL3050, IL2091 // Test code intentionally uses reflection and dynamic generic types
+[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Test exercises reflection-based RegisterGeneric API.")]
+[UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Test exercises reflection-based RegisterGeneric API.")]
+[UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "Test exercises reflection-based RegisterGeneric API.")]
+[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Test exercises MakeGenericType factory pattern.")]
 public class TestGeneric
 {
     class Generic<T>
@@ -110,4 +114,3 @@ public class TestGeneric
         await Assert.That(() => container.RegisterGeneric(typeof(Generic<,>), invalidParameterCreator).AsSelf()).ThrowsExactly<ArgumentException>();
     }
 }
-#pragma warning restore IL2075, IL3050, IL2091

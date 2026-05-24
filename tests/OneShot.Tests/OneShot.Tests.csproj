@@ -7,6 +7,8 @@
     <IsPackable>false</IsPackable>
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- IL2111: TUnit's generated test-metadata code reflects over types with DAM-annotated members. -->
+    <NoWarn>$(NoWarn);IL2111</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

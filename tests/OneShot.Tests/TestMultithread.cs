@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace OneShot.Test;
@@ -9,14 +10,14 @@ public class TestMultiThread
     private Type[] _types;
 
     [Before(HookType.Test)]
-#pragma warning disable IL2075 // Test code intentionally uses reflection to discover nested types
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Test discovers nested types via reflection; all nested fixtures are referenced from this assembly.")]
     public void SetUp()
     {
         _types = GetType().GetNestedTypes(BindingFlags.NonPublic)
             .Where(type => !type.IsInterface && !type.Name.StartsWith("<", StringComparison.Ordinal))
             .ToArray();
     }
-#pragma warning restore IL2075
 
     [Test]
     public void should_able_to_register_and_resolve_on_different_thread()

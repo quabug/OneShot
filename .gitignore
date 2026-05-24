@@ -6,6 +6,7 @@
 # IDE
 .vs/
 .idea/
+.antigravitycli/
 *.user
 *.suo
 

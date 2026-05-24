@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace OneShot.Test;
 
 public class TestOneShot
@@ -237,7 +239,8 @@ public class TestOneShot
     }
 
     [Test]
-#pragma warning disable IL2026 // IsEquivalentTo uses reflection for structural comparison
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "TUnit's IsEquivalentTo uses reflection for structural comparison; the test only compares int arrays which are trim-safe in practice.")]
     public async Task should_resolve_group_of_type()
     {
         var container = new Container();

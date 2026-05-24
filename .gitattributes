@@ -1,0 +1,19 @@
+# Force LF line endings on all text files (matches editorconfig end_of_line = lf).
+# Without this, Windows clients with core.autocrlf=true check the repo out with CRLF
+# and IDE0055 flags every file when warnings-as-errors is on.
+* text=auto eol=lf
+
+# Binary types - leave alone
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.pdb binary
+*.snk binary
+
+# Windows scripts need CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
