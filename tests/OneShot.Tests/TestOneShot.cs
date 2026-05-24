@@ -61,7 +61,7 @@ public class TestOneShot
         container.Register<InjectConstructor>().AsSelf();
         container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
-        container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+        container.Register<Func<int>>((_, _) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
         container.Register<ComplexClass>().AsSelf();
         var complex1 = container.Resolve<ComplexClass>();
         await Assert.That(complex1.A).IsSameReferenceAs(typeA);
@@ -94,7 +94,7 @@ public class TestOneShot
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
-        container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+        container.Register<Func<int>>((_, _) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
         await Assert.That(container.Resolve<Func<int>>()()).IsEqualTo(100);
     }
 
@@ -280,6 +280,7 @@ public class TestOneShot
         [Inject]
         void Inject(InterfaceA _)
         {
+            // No-op: test verifies the DI framework invokes the [Inject] method without throwing.
         }
 #pragma warning restore IDE0051
     }
@@ -297,6 +298,7 @@ public class TestOneShot
         [Inject]
         public void Inject(TypeA _)
         {
+            // No-op: test verifies repeated injection on the same instance.
         }
     }
 

@@ -19,7 +19,7 @@ public sealed class OneShotGenerator : IIncrementalGenerator
             {
                 var invocation = (InvocationExpressionSyntax)ctx.Node;
                 if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) return null;
-                if (memberAccess.Name is not GenericNameSyntax genericName) return null;
+                if (memberAccess.Name is not GenericNameSyntax) return null;
 
                 var symbolInfo = ctx.SemanticModel.GetSymbolInfo(invocation, ct);
                 if (symbolInfo.Symbol is not IMethodSymbol method) return null;

@@ -23,7 +23,7 @@ public class TestLifetime
     public async Task should_resolve_singleton_func()
     {
         var container = new Container();
-        Func<Container, Type, TypeA> createTypeA = (c, t) => new TypeA();
+        Func<Container, Type, TypeA> createTypeA = (_, _) => new TypeA();
         container.Register(createTypeA).Singleton().AsSelf();
         await Assert.That(container.Resolve<TypeA>()).IsSameReferenceAs(container.Resolve<TypeA>());
     }

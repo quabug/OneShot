@@ -7,6 +7,9 @@ namespace OneShot.Test;
 [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Test exercises reflection-based RegisterGeneric API.")]
 [UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "Test exercises reflection-based RegisterGeneric API.")]
 [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Test exercises MakeGenericType factory pattern.")]
+[SuppressMessage("Sonar", "S2326", Justification = "Type parameters are intentionally unused: these are open-generic test fixtures whose shape (not body) is what's under test.")]
+[SuppressMessage("Sonar", "S1172", Justification = "Method signatures are constrained by the RegisterGeneric (Container, Type) contract; unused parameters use the discard naming convention.")]
+[SuppressMessage("Sonar", "S1186", Justification = "Empty bodies on InvalidReturnCreator/CreateLazy are intentional fixtures that exercise RegisterGeneric's validation.")]
 public class TestGeneric
 {
     class Generic<T>
@@ -86,12 +89,12 @@ public class TestGeneric
     }
 
     [Test]
-    public void should_register_and_resolve_generic_with_multiple_type_parameters_by_method_name()
+    public async Task should_register_and_resolve_generic_with_multiple_type_parameters_by_method_name()
     {
         var container = new Container();
         var creator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic);
         container.RegisterGeneric(typeof(Generic<,>), creator).AsSelf();
-        var instance = container.Resolve<Generic<int, float>>();
+        await Assert.That(container.Resolve<Generic<int, float>>()).IsNotNull();
     }
 
     [Test]

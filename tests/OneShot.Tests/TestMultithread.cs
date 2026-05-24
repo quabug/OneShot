@@ -63,6 +63,8 @@ public class TestMultiThread
                     case 2:
                         container.Register(type).Scoped().AsSelf().AsBases().AsInterfaces();
                         break;
+                    default:
+                        throw new InvalidOperationException("rnd.Next(3) produced a value outside [0, 3).");
                 }
                 Thread.Sleep(rnd.Next(0, 100));
             }
