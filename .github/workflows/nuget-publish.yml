@@ -3,24 +3,55 @@ name: publish-nuget-package
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
   workflow_dispatch:
 
+concurrency:
+  group: nuget-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
-  build:
-
+  publish:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-    - name: Pack and Publish
+
+    - name: Build
+      run: dotnet build -c Release
+
+    - name: Test (runtime)
+      run: dotnet run --project tests/OneShot.Tests -c Release --no-build
+
+    - name: Test (generator snapshots)
+      run: dotnet run --project tests/OneShot.Generator.Tests -c Release --no-build
+
+    # Pack each runtime project explicitly so benchmarks/tests can never
+    # leak into the published packages even if their csproj forgets to
+    # set IsPackable=false.
+    - name: Pack OneShot
+      run: dotnet pack src/OneShot/OneShot.csproj -c Release -o out --no-build
+
+    - name: Pack OneShot.Generator
+      run: dotnet pack src/OneShot.Generator/OneShot.Generator.csproj -c Release -o out --no-build
+
+    - name: Upload nupkg artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nupkgs
+        path: out/*.nupkg
+
+    # --skip-duplicate makes the job idempotent: re-running the workflow
+    # after a partial failure (e.g. one of the two packages already
+    # pushed) won't error on the already-published version.
+    - name: Push to NuGet
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      run: |
-        dotnet restore
-        dotnet pack -c Release -o out
-        dotnet nuget push ./out/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push "./out/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

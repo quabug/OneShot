@@ -6,6 +6,12 @@
     <RootNamespace>OneShot.Generator</RootNamespace>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
+    <!-- Source-generator packaging: ship the DLL under analyzers/dotnet/cs
+         so NuGet activates it as a Roslyn analyzer, not as a runtime library.
+         Without this the package would install but never run. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <PackageId>OneShot.Generator</PackageId>
     <Version>4.0.0</Version>
     <Authors>quabug</Authors>
@@ -13,12 +19,15 @@
     <Description>Source generator for OneShot DI container - generates ITypeInfo implementations for AOT-friendly, zero-reflection dependency injection</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/quabug/OneShot</RepositoryUrl>
-    <!-- Suppress netstandard2.0 warnings not applicable to source generators -->
-    <NoWarn>$(NoWarn);NU5128;CA1305</NoWarn>
+    <NoWarn>$(NoWarn);CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>
