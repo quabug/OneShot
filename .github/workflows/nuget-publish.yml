@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write  # required for NuGet Trusted Publishing via OIDC
 
 jobs:
   publish:
@@ -48,10 +49,18 @@ jobs:
         name: nupkgs
         path: out/*.nupkg
 
+    # Trusted Publishing: exchange GitHub's OIDC token for a short-lived
+    # NuGet API key. Configured on nuget.org under quabug's account ->
+    # Trusted Publishing, scoped to this repo + this workflow file.
+    # Short-lived keys eliminate the rotation cost of long-lived secrets.
+    - name: NuGet login (OIDC -> temp API key)
+      uses: NuGet/login@v1
+      id: nuget-login
+      with:
+        user: quabug
+
     # --skip-duplicate makes the job idempotent: re-running the workflow
     # after a partial failure (e.g. one of the two packages already
     # pushed) won't error on the already-published version.
     - name: Push to NuGet
-      env:
-        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      run: dotnet nuget push "./out/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      run: dotnet nuget push "./out/*.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
