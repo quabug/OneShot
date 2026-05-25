@@ -365,10 +365,8 @@ public class Service
     [Inject] public int ReadOnlyValue { get; }
 }";
         var compilation = CreateCompilation(source);
-        var generator = new OneShotGenerator();
-        var driver = CSharpGeneratorDriver.Create(generator);
-        driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out _, out var diagnostics);
+        CSharpGeneratorDriver.Create(new OneShotGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
         var warnings = diagnostics.Where(d => d.Id == "ONESHOT001").ToArray();
         await Assert.That(warnings.Length).IsEqualTo(1);
         await Assert.That(warnings[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("ReadOnlyValue");
@@ -390,10 +388,8 @@ public class Service
     [Inject] public Service(Dep d) { }
 }";
         var compilation = CreateCompilation(source);
-        var generator = new OneShotGenerator();
-        var driver = CSharpGeneratorDriver.Create(generator);
-        driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out _, out var diagnostics);
+        CSharpGeneratorDriver.Create(new OneShotGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out var diagnostics);
         var warnings = diagnostics.Where(d => d.Id == "ONESHOT002").ToArray();
         await Assert.That(warnings.Length).IsEqualTo(1);
     }
