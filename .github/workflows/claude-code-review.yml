@@ -1,10 +1,10 @@
 name: Claude Code Review
 
-on:
-  pull_request:
-    types: [ opened, synchronize, ready_for_review ]
-    paths:
-      - "**/*.cs"
+#on:
+#  pull_request:
+#    types: [ opened, synchronize, ready_for_review ]
+#    paths:
+#      - "**/*.cs"
 
 jobs:
   claude-review:
