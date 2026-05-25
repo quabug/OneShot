@@ -82,6 +82,14 @@ dotnet_naming_symbols.private_internal_fields.applicable_accessibilities = priva
 dotnet_naming_style.camel_case_underscore_style.required_prefix = _
 dotnet_naming_style.camel_case_underscore_style.capitalization = camel_case
 
+# public fields and properties should be PascalCase
+dotnet_naming_rule.pascal_case_for_public_fields.severity = warning
+dotnet_naming_rule.pascal_case_for_public_fields.symbols  = public_fields_and_properties
+dotnet_naming_rule.pascal_case_for_public_fields.style    = pascal_case
+dotnet_naming_symbols.public_fields_and_properties.applicable_kinds = field, property, event
+dotnet_naming_symbols.public_fields_and_properties.applicable_accessibilities = public
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
 # Code style defaults
 csharp_using_directive_placement = outside_namespace:suggestion
 dotnet_sort_system_directives_first = true
@@ -91,7 +99,7 @@ csharp_preserve_single_line_statements = false:none
 csharp_prefer_static_local_function = true:suggestion
 csharp_prefer_simple_using_statement = false:none
 csharp_style_prefer_switch_expression = true:suggestion
-dotnet_style_readonly_field = true:suggestion
+dotnet_style_readonly_field = true:warning
 
 # Expression-level preferences
 dotnet_style_object_initializer = true:suggestion
@@ -203,8 +211,51 @@ indent_size = 2
 
 # https://github.com/dotnet/aspnetcore/blob/main/.editorconfig
 [*.{cs,vb}]
+
+# CA1000: Do not declare static members on generic types
+dotnet_diagnostic.CA1000.severity = suggestion
+
+# CA1002: Do not expose generic lists
+dotnet_diagnostic.CA1002.severity = suggestion
+
+# CA1003: Use generic event handler instances - Action events are acceptable in game engines for simplicity
+dotnet_diagnostic.CA1003.severity = none
+
+# CA1031: Do not catch general exception types - sometimes needed in game engines for error handling
+dotnet_diagnostic.CA1031.severity = suggestion
+
 # CA1062: Validate arguments of public methods
 dotnet_diagnostic.CA1062.severity = none
+
+# CA1303: Do not pass literals as localized parameters - game engines use console output for debugging
+dotnet_diagnostic.CA1303.severity = none
+
+# CA1724: Type names should not match namespaces - common in game development (Game class, Engine class, etc.)
+dotnet_diagnostic.CA1724.severity = suggestion
+
+# CA2007: Consider calling ConfigureAwait - game engines often run in single-threaded context
+dotnet_diagnostic.CA2007.severity = none
+
+# CA1024: Use properties where appropriate - not always appropriate for interop methods
+dotnet_diagnostic.CA1024.severity = suggestion
+
+# CA1063: Implement IDisposable correctly - simple dispose pattern is acceptable in game engines
+dotnet_diagnostic.CA1063.severity = suggestion
+
+# CA1308: Normalize strings to uppercase - lowercase is often preferred for paths
+dotnet_diagnostic.CA1308.severity = suggestion
+
+# CA1816: Call GC.SuppressFinalize correctly - simple dispose pattern is acceptable
+dotnet_diagnostic.CA1816.severity = suggestion
+
+# CA2000: Dispose objects before losing scope
+dotnet_diagnostic.CA2000.severity = suggestion
+
+# CA2201: Do not raise reserved exception types - simplified exception handling for game engines
+dotnet_diagnostic.CA2201.severity = suggestion
+
+# CSC: Error CA1014 : Mark assemblies with CLSCompliant (https://docs.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1014)
+dotnet_diagnostic.CA1014.severity = none
 
 # SYSLIB1054: Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
 dotnet_diagnostic.SYSLIB1054.severity = warning
@@ -212,8 +263,14 @@ dotnet_diagnostic.SYSLIB1054.severity = warning
 # CA1018: Mark attributes with AttributeUsageAttribute
 dotnet_diagnostic.CA1018.severity = warning
 
+# CA1040: Avoid empty interfaces
+dotnet_diagnostic.CA1040.severity = none
+
 # CA1047: Do not declare protected member in sealed type
 dotnet_diagnostic.CA1047.severity = warning
+
+# CA1051: Do not declare visible instance fields - ECS components use public fields for performance
+dotnet_diagnostic.CA1051.severity = suggestion
 
 # CA1305: Specify IFormatProvider
 dotnet_diagnostic.CA1305.severity = warning
@@ -233,6 +290,9 @@ dotnet_diagnostic.CA1512.severity = warning
 # CA1513: Use ObjectDisposedException throw helper
 dotnet_diagnostic.CA1513.severity = warning
 
+# CA1720: Identifiers should not contain type names
+dotnet_diagnostic.CA1720.severity = suggestion
+
 # CA1725: Parameter names should match base declaration
 dotnet_diagnostic.CA1725.severity = suggestion
 
@@ -240,7 +300,8 @@ dotnet_diagnostic.CA1725.severity = suggestion
 dotnet_diagnostic.CA1802.severity = warning
 
 # CA1805: Do not initialize unnecessarily
-dotnet_diagnostic.CA1805.severity = warning
+# https://github.com/Full-Metal-Bagel/kgp-code/issues/124
+dotnet_diagnostic.CA1805.severity = suggestion
 
 # CA1810: Do not initialize unnecessarily
 dotnet_diagnostic.CA1810.severity = warning
@@ -372,6 +433,9 @@ dotnet_diagnostic.CA2200.severity = warning
 # CA2208: Instantiate argument exceptions correctly
 dotnet_diagnostic.CA2208.severity = warning
 
+# CA2225: Operator overloads have named alternates
+dotnet_diagnostic.CA2225.severity = suggestion
+
 # CA2245: Do not assign a property to itself
 dotnet_diagnostic.CA2245.severity = warning
 
@@ -447,10 +511,16 @@ dotnet_diagnostic.IDE1006.severity = warning
 # IDE2000: Disallow multiple blank lines
 dotnet_style_allow_multiple_blank_lines_experimental = false
 dotnet_diagnostic.IDE2000.severity = warning
-# 
+#
 # [{eng/tools/**.cs,**/{test,testassets,samples,Samples,perf,scripts,stress}/**.cs}]
 # # CA1018: Mark attributes with AttributeUsageAttribute
-# dotnet_diagnostic.CA1018.severity = suggestion
+dotnet_diagnostic.CA1018.severity = suggestion
+# CA1027: Mark enums with FlagsAttribute
+dotnet_diagnostic.CA1027.severity = suggestion
+# CA1034: Nested types should not be visible
+dotnet_diagnostic.CA1034.severity = suggestion
+# CA1043: Use integral or string argument for indexers
+dotnet_diagnostic.CA1043.severity = suggestion
 # # CA1507: Use nameof to express symbol names
 # dotnet_diagnostic.CA1507.severity = suggestion
 # # CA1510: Use ArgumentNullException throw helper
@@ -461,12 +531,16 @@ dotnet_diagnostic.IDE2000.severity = warning
 # dotnet_diagnostic.CA1512.severity = suggestion
 # # CA1513: Use ObjectDisposedException throw helper
 # dotnet_diagnostic.CA1513.severity = suggestion
+# CA1716: Identifiers should not match keywords
+dotnet_diagnostic.CA1716.severity = suggestion
 # # CA1802: Use literals where appropriate
 # dotnet_diagnostic.CA1802.severity = suggestion
 # # CA1805: Do not initialize unnecessarily
 # dotnet_diagnostic.CA1805.severity = suggestion
 # # CA1810: Do not initialize unnecessarily
 # dotnet_diagnostic.CA1810.severity = suggestion
+# CA1815: Override equals and operator equals on value types
+dotnet_diagnostic.CA1815.severity = suggestion
 # # CA1822: Make member static
 # dotnet_diagnostic.CA1822.severity = suggestion
 # # CA1823: Avoid zero-length array allocations
@@ -519,6 +593,8 @@ dotnet_diagnostic.IDE2000.severity = warning
 # dotnet_diagnostic.CA2008.severity = suggestion
 # # CA2012: Use ValueTask correctly
 # dotnet_diagnostic.CA2012.severity = suggestion
+# CA2231: Overload operator equals on overriding ValueType.Equals
+dotnet_diagnostic.CA2231.severity = suggestion
 # # CA2249: Use string.Contains instead of string.IndexOf to improve readability.
 # dotnet_diagnostic.CA2249.severity = suggestion
 # # IDE0005: Remove unnecessary usings
@@ -545,12 +621,12 @@ dotnet_diagnostic.IDE2000.severity = warning
 # dotnet_diagnostic.IDE0062.severity = suggestion
 # # IDE0200: Lambda expression can be removed
 # dotnet_diagnostic.IDE0200.severity = suggestion
-# 
+#
 # # CA2016: Forward the 'CancellationToken' parameter to methods that take one
 # dotnet_diagnostic.CA2016.severity = suggestion
-# 
+#
 # # Defaults for content in the shared src/ and shared runtime dir
-# 
+#
 # [{**/Shared/runtime/**.{cs,vb},src/Shared/test/Shared.Tests/runtime/**.{cs,vb},**/microsoft.extensions.hostfactoryresolver.sources/**.{cs,vb}}]
 # # CA1822: Make member static
 # dotnet_diagnostic.CA1822.severity = silent
@@ -564,7 +640,41 @@ dotnet_diagnostic.IDE2000.severity = warning
 # dotnet_diagnostic.IDE0062.severity = silent
 # # IDE0161: Convert to file-scoped namespace
 # dotnet_diagnostic.IDE0161.severity = silent
-# 
+#
 # [{**/Shared/**.cs,**/microsoft.extensions.hostfactoryresolver.sources/**.{cs,vb}}]
 # # IDE0005: Remove unused usings. Ignore for shared src files since imports for those depend on the projects in which they are included.
 # dotnet_diagnostic.IDE0005.severity = silent
+
+# Test code conventions: snake_case test names, throwaway fixtures, no ConfigureAwait noise.
+[{tests/**.cs,**/*.Tests/**.cs}]
+# CA1707: Identifiers should not contain underscores - test methods use snake_case by convention
+dotnet_diagnostic.CA1707.severity = none
+# CA1852: Seal internal types - test fixtures are throwaway types, sealing is noise
+dotnet_diagnostic.CA1852.severity = none
+# CA1812: Avoid uninstantiated internal classes - test fixtures are instantiated via DI/reflection in tests
+dotnet_diagnostic.CA1812.severity = none
+# CA1515: Make types internal - test fixtures may be public for cross-file use
+dotnet_diagnostic.CA1515.severity = none
+# CA2007: ConfigureAwait - tests run on no synchronization context
+dotnet_diagnostic.CA2007.severity = none
+# CA1822: Make member static - test methods are instance by convention
+dotnet_diagnostic.CA1822.severity = none
+# CA5394: Insecure randomness - tests use Random for deterministic fixtures
+dotnet_diagnostic.CA5394.severity = none
+# CA1861: Avoid constant arrays as arguments - test assertions frequently inline expected arrays
+dotnet_diagnostic.CA1861.severity = none
+# CA1849: Call async equivalent - sync Roslyn APIs are fine in snapshot tests
+dotnet_diagnostic.CA1849.severity = none
+# CA1840: Use Environment.CurrentManagedThreadId - thread tests intentionally use Thread.CurrentThread.ManagedThreadId
+dotnet_diagnostic.CA1840.severity = none
+# CA1865: Use char overload - low-value style fix in test code
+dotnet_diagnostic.CA1865.severity = none
+
+# Benchmark code conventions: BenchmarkDotNet drives instantiation and requires public types.
+[benchmarks/**.cs]
+# CA1515: Types can be internal - BenchmarkDotNet requires public benchmark classes
+dotnet_diagnostic.CA1515.severity = none
+# CA1812: Uninstantiated internal classes - benchmark fixtures are instantiated reflectively
+dotnet_diagnostic.CA1812.severity = none
+# CA1852: Seal internal types - benchmark fixtures are throwaway
+dotnet_diagnostic.CA1852.severity = none

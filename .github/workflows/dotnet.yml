@@ -1,8 +1,10 @@
 name: dotnet-unit-test
 
 on:
+  push:
+    branches: [ main, v4 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, v4 ]
   workflow_dispatch:
 
 jobs:
@@ -13,13 +15,30 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-dotnet@v3
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
       with:
-        global-json-file: .NET/global.json
-    - name: Build and Test
-      run: |
-        cd .NET
-        dotnet restore
-        dotnet build --no-restore
-        dotnet test --no-build --verbosity normal
+        dotnet-version: '10.0.x'
+    - name: Build
+      run: dotnet build
+    - name: Test OneShot.Tests
+      run: dotnet run --project tests/OneShot.Tests
+    - name: Test OneShot.Generator.Tests
+      run: dotnet run --project tests/OneShot.Generator.Tests
+
+  nativeaot:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+    # The publish step exercises every IL trim/AOT analyzer on OneShot's
+    # public surface - any new reflection without proper [RequiresDynamicCode]
+    # / [RequiresUnreferencedCode] annotations will fail it. That's the actual
+    # AOT-compatibility gate for the library. We don't try to *run* the
+    # resulting test binary because TUnit's runtime currently has AOT issues
+    # outside our control (the binary segfaults under AOT). A `continue-on-error`
+    # run-step would silently pass and obscure real publish regressions.
+    - name: Publish NativeAOT (gates IL trim/AOT analyzers)
+      run: dotnet publish tests/OneShot.Tests -c Release
