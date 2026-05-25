@@ -854,15 +854,13 @@ public readonly ref struct WithBuilder
 
     private LifetimeBuilder WithImpl(IEnumerable<(object instance, Type? label)> labeledInstances)
     {
-        // Create child container to hold the provided instances
-        // This container will be disposed when parent disposes
+        // Overrides live in a child container so they're scoped to this registration
+        // and get torn down with the parent.
 #pragma warning disable CA2000 // Child container lifecycle managed by parent
         Container container = Container.CreateChildContainer();
 #pragma warning restore CA2000
-        // Register each provided instance in the child container for override resolution
         foreach ((object instance, Type? label) in labeledInstances)
             container.RegisterInstance(instance).AsSelf(label).AsBases(label).AsInterfaces(label);
-        // Return builder that resolves from child container with overrides
         var parentContainer = Container;
         var concreteType = ConcreteType;
         var resolverFunc = Resolver.Func;

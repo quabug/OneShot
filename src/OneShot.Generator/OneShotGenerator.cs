@@ -12,7 +12,8 @@ public sealed class OneShotGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Pipeline C: Scan Register<T>() and Instantiate<T>() call sites on Container
+        // Trigger 1: zero-arg Register<T>() / Instantiate<T>() call sites on Container.
+        // requireAttributeTrigger:false because the call site itself is the opt-in.
         var callSiteTypes = context.SyntaxProvider.CreateSyntaxProvider(
             predicate: static (node, _) => IsCallSiteCandidate(node),
             transform: static (ctx, ct) =>
@@ -35,7 +36,7 @@ public sealed class OneShotGenerator : IIncrementalGenerator
             }
         ).Where(static m => m is not null);
 
-        // Pipeline B: Types containing [Inject] on any member or parameter
+        // Trigger 2: types carrying [Inject] on any member or parameter.
         var injectMemberTypes = context.SyntaxProvider.CreateSyntaxProvider(
             predicate: static (node, _) => IsCandidateType(node),
             transform: static (ctx, ct) =>
@@ -46,7 +47,8 @@ public sealed class OneShotGenerator : IIncrementalGenerator
             }
         ).Where(static m => m is not null);
 
-        // Combine and deduplicate
+        // Deduplicate by fully-qualified name: a type discovered through both
+        // triggers (e.g. registered AND carrying [Inject]) emits one file.
         var combined = callSiteTypes.Collect()
             .Combine(injectMemberTypes.Collect())
             .SelectMany(static (pair, _) =>
@@ -59,7 +61,6 @@ public sealed class OneShotGenerator : IIncrementalGenerator
                 return dict.Values.ToImmutableArray();
             });
 
-        // Generate source for each type
         context.RegisterSourceOutput(combined, static (spc, model) =>
         {
             spc.AddSource(model.SafeName + ".g.cs", Emitter.Emit(model));
@@ -68,8 +69,6 @@ public sealed class OneShotGenerator : IIncrementalGenerator
 
     private static bool IsCallSiteCandidate(SyntaxNode node)
     {
-        // Fast syntactic check: InvocationExpression with 0 arguments,
-        // member access with generic name "Register" or "Instantiate" with 1 type arg
         if (node is not InvocationExpressionSyntax invocation) return false;
         if (invocation.ArgumentList.Arguments.Count != 0) return false;
         if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) return false;
@@ -85,13 +84,13 @@ public sealed class OneShotGenerator : IIncrementalGenerator
 
         foreach (var member in typeDecl.Members)
         {
-            // Skip nested types
             if (member is TypeDeclarationSyntax) continue;
 
-            // Check attributes on the member itself (including [field: Inject] on properties)
+            // Member attributes include `[field: Inject]` on auto-properties, so
+            // scanning the member's own attribute lists is sufficient — no need
+            // to walk the property's backing field separately.
             if (AnyInjectAttribute(member.AttributeLists)) return true;
 
-            // Check parameter attributes on constructors and methods
             if (member is BaseMethodDeclarationSyntax method)
             {
                 foreach (var param in method.ParameterList.Parameters)
