@@ -680,13 +680,6 @@ public readonly ref struct LifetimeBuilder
         return new ResolverBuilder(container, concreteType, (_, _) => lazyValue.Value, ResolverLifetime.Singleton);
     }
 
-    [Obsolete("use Scoped instead")]
-    [MustUseReturnValue]
-    public ResolverBuilder Scope()
-    {
-        return Scoped();
-    }
-
     /// <summary>
     /// Configures the registration as scoped (single instance per scope/child container).
     /// </summary>
