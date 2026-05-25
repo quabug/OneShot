@@ -19,7 +19,9 @@ public class TestCircularCheck
     [Test]
     public async Task should_throw_on_directly_circular_dependency()
     {
-        using var container = new Container();
+        // EnableCircularCheck defaults to true only in DEBUG; Release builds
+        // need it explicitly on or a cycle will recurse to stack-overflow.
+        using var container = new Container { EnableCircularCheck = true };
         container.Register<A>().AsSelf();
         container.Register<B>().AsSelf();
         await Assert.That(() => container.Resolve<A>()).ThrowsExactly<CircularDependencyException>();
@@ -50,7 +52,7 @@ public class TestCircularCheck
     [Test]
     public async Task should_throw_on_indirectly_circular_dependency()
     {
-        using var container = new Container();
+        using var container = new Container { EnableCircularCheck = true };
         container.Register<C>().AsSelf();
         container.Register<D>().AsSelf();
         container.Register<E>().AsSelf();
