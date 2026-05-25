@@ -65,7 +65,8 @@ internal sealed record TypeModel(
     ImmutableArray<InjectPropertyModel> Properties,
     ImmutableArray<InjectMethodModel> Methods,
     ImmutableArray<string> Interfaces,
-    ImmutableArray<string> BaseTypes)
+    ImmutableArray<string> BaseTypes,
+    ImmutableArray<DiagnosticInfo> Diagnostics)
 {
     public bool Equals(TypeModel? other)
     {
@@ -79,11 +80,25 @@ internal sealed record TypeModel(
             && Properties.SequenceEqual(other.Properties)
             && Methods.SequenceEqual(other.Methods)
             && Interfaces.SequenceEqual(other.Interfaces)
-            && BaseTypes.SequenceEqual(other.BaseTypes);
+            && BaseTypes.SequenceEqual(other.BaseTypes)
+            && Diagnostics.SequenceEqual(other.Diagnostics);
     }
 
     public override int GetHashCode() => FullyQualifiedName.GetHashCode();
 }
+
+// Value-equal carrier for generator diagnostics. Holds only what's needed to
+// reconstitute a Roslyn Location later, so the incremental cache key stays
+// stable across runs.
+internal readonly record struct DiagnosticInfo(
+    string Id,
+    string Title,
+    string Message,
+    string FilePath,
+    int StartLine,
+    int StartColumn,
+    int EndLine,
+    int EndColumn);
 
 // ===== Extraction =====
 
@@ -96,7 +111,13 @@ internal static class TypeModelExtractor
     {
         if (!IsEffectivelyAccessible(type)) return null;
         if (type.IsAbstract || type.TypeKind == TypeKind.Interface) return null;
-        if (type.TypeParameters.Length > 0) return null;
+        // Skip unbound open generic definitions (List<>) but accept fully
+        // constructed generics (List<int>, Repository<MyUser>). Using
+        // TypeParameters.Length would reject both because TypeParameters
+        // returns the original definition's parameters even on constructed
+        // types.
+        if (type.IsUnboundGenericType) return null;
+        if (type.IsGenericType && type.TypeArguments.Any(a => a.TypeKind == TypeKind.TypeParameter)) return null;
 
         var injectAttr = compilation.GetTypeByMetadataName("OneShot.InjectAttribute");
         if (injectAttr is null) return null;
@@ -107,9 +128,10 @@ internal static class TypeModelExtractor
             if (!hasInject) return null;
         }
 
-        var constructor = ExtractConstructor(type, injectAttr);
+        var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
+        var constructor = ExtractConstructor(type, injectAttr, diagnostics);
         var fields = ExtractFields(type, injectAttr);
-        var properties = ExtractProperties(type, injectAttr);
+        var properties = ExtractProperties(type, injectAttr, diagnostics);
         var methods = ExtractMethods(type, injectAttr);
 
         var interfaces = type.AllInterfaces
@@ -128,7 +150,19 @@ internal static class TypeModelExtractor
         var fqn = type.ToDisplayString(s_fqn);
         return new TypeModel(fqn, MakeSafeName(fqn), type.IsValueType,
             constructor, fields, properties, methods,
-            interfaces, baseTypesList.ToImmutable());
+            interfaces, baseTypesList.ToImmutable(),
+            diagnostics.ToImmutable());
+    }
+
+    private static DiagnosticInfo BuildDiag(string id, string title, string message, ISymbol symbol)
+    {
+        var loc = symbol.Locations.FirstOrDefault();
+        if (loc == null || !loc.IsInSource)
+            return new DiagnosticInfo(id, title, message, string.Empty, 0, 0, 0, 0);
+        var span = loc.GetLineSpan();
+        return new DiagnosticInfo(id, title, message, span.Path,
+            span.StartLinePosition.Line, span.StartLinePosition.Character,
+            span.EndLinePosition.Line, span.EndLinePosition.Character);
     }
 
     private static bool IsEffectivelyAccessible(INamedTypeSymbol type)
@@ -161,7 +195,9 @@ internal static class TypeModelExtractor
         return symbol.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attrType));
     }
 
-    private static ConstructorModel? ExtractConstructor(INamedTypeSymbol type, INamedTypeSymbol injectAttr)
+    private static ConstructorModel? ExtractConstructor(
+        INamedTypeSymbol type, INamedTypeSymbol injectAttr,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var ctors = type.InstanceConstructors.Where(c => !c.IsImplicitlyDeclared).ToArray();
         if (ctors.Length == 0)
@@ -169,9 +205,25 @@ internal static class TypeModelExtractor
 
         IMethodSymbol? chosen;
         if (ctors.Length == 1)
+        {
             chosen = ctors[0];
+        }
         else
-            chosen = ctors.FirstOrDefault(c => HasAttr(c, injectAttr));
+        {
+            var injectMarked = ctors.Where(c => HasAttr(c, injectAttr)).ToArray();
+            if (injectMarked.Length > 1)
+            {
+                // Multiple ctors marked [Inject] - resolver can't pick one.
+                // v3 threw at runtime via .Single(); surface this at compile time.
+                diagnostics.Add(BuildDiag(
+                    "ONESHOT002",
+                    "Ambiguous [Inject] constructors",
+                    $"Type '{type.Name}' has {injectMarked.Length} constructors marked [Inject]; exactly one is allowed.",
+                    injectMarked[0]));
+                return null;
+            }
+            chosen = injectMarked.FirstOrDefault();
+        }
 
         if (chosen is null)
             return null; // multiple ctors, none marked
@@ -224,7 +276,9 @@ internal static class TypeModelExtractor
         return result.ToImmutable();
     }
 
-    private static ImmutableArray<InjectPropertyModel> ExtractProperties(INamedTypeSymbol type, INamedTypeSymbol injectAttr)
+    private static ImmutableArray<InjectPropertyModel> ExtractProperties(
+        INamedTypeSymbol type, INamedTypeSymbol injectAttr,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var result = ImmutableArray.CreateBuilder<InjectPropertyModel>();
         var current = type;
@@ -234,7 +288,18 @@ internal static class TypeModelExtractor
             foreach (var member in current.GetMembers().OfType<IPropertySymbol>())
             {
                 if (!HasAttr(member, injectAttr)) continue;
-                if (member.SetMethod is null) continue; // read-only
+                if (member.SetMethod is null)
+                {
+                    // Read-only property with [Inject] - skip but surface a
+                    // diagnostic so the misconfiguration isn't silent. v3
+                    // threw at runtime; here we catch it at compile time.
+                    if (isDeclaring) diagnostics.Add(BuildDiag(
+                        "ONESHOT001",
+                        "Read-only property cannot be injected",
+                        $"Property '{type.Name}.{member.Name}' is marked [Inject] but has no setter; injection is skipped. Add a setter (any accessibility) or remove [Inject].",
+                        member));
+                    continue;
+                }
                 if (!isDeclaring && !IsAccessible(member)) continue;
 
                 bool needsUnsafe = member.SetMethod != null && !IsAccessible(member.SetMethod);

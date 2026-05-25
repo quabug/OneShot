@@ -103,7 +103,9 @@ public sealed class Container : IDisposable
     internal Container? Parent { get; private set; }
     internal ConcurrentDictionary<Type, ConcurrentStack<Resolver>> Resolvers { get; private set; } = new();
     private ConcurrentStack<IDisposable> _disposableInstances = new();
-    private ConcurrentStack<Container> _children = new();
+    // ConcurrentDictionary-as-set: stack-of-children would leak in long-running
+    // scope-per-request scenarios because disposed scopes never get removed.
+    private ConcurrentDictionary<Container, byte> _children = new();
 
     /// <summary>
     /// Enables or disables circular dependency checking during type resolution.
@@ -138,7 +140,7 @@ public sealed class Container : IDisposable
         Parent = parent;
         EnableCircularCheck = parent.EnableCircularCheck;
         PreventDisposableTransient = parent.PreventDisposableTransient;
-        parent._children.Push(this);
+        parent._children.TryAdd(this, 0);
     }
 
     /// <summary>
@@ -168,11 +170,22 @@ public sealed class Container : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_children != null!) while (_children.TryPop(out var child)) child.Dispose();
+        // Snapshot then null out so concurrent child.Dispose() calls (which
+        // remove themselves from this dictionary) see a fresh empty container
+        // and short-circuit on the Parent?._children?.TryRemove path below.
+        var children = _children;
         _children = null!;
+        if (children != null!)
+            foreach (var child in children.Keys) child.Dispose();
+
         if (_disposableInstances != null!) while (_disposableInstances.TryPop(out var instance)) instance.Dispose();
         _disposableInstances = null!;
+
+        // Remove self from parent's children dict so scope-per-request usage
+        // doesn't leak entries for the lifetime of the root container.
+        Parent?._children?.TryRemove(this, out _);
         Parent = null;
+
         Resolvers?.Clear();
         Resolvers = null!;
     }
@@ -410,13 +423,13 @@ public sealed class Container : IDisposable
     /// </summary>
     /// <typeparam name="T">The delegate type.</typeparam>
     /// <param name="func">The function to invoke.</param>
-    /// <returns>The function's return value.</returns>
-    /// <exception cref="ArgumentException">Thrown if the function returns void.</exception>
-    public object CallFunc<T>(T func) where T : Delegate
+    /// <returns>The function's return value. Null if the delegate returns null.</returns>
+    /// <exception cref="ArgumentException">Thrown if the function returns void; use <see cref="CallAction{T}"/> for void delegates.</exception>
+    public object? CallFunc<T>(T func) where T : Delegate
     {
         var method = func.Method;
-        if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must return void", nameof(func));
-        return method.Invoke(func.Target, this)!;
+        if (method.ReturnType == typeof(void)) throw new ArgumentException($"{method.Name} must not return void; use {nameof(CallAction)} instead.", nameof(func));
+        return method.Invoke(func.Target, this);
     }
 
     /// <summary>

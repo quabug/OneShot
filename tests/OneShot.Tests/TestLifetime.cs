@@ -260,6 +260,27 @@ public class TestLifetime
     }
 
     [Test]
+    public async Task disposed_child_does_not_leak_in_parent_children_dict()
+    {
+        // Regression: an earlier impl tracked children in a ConcurrentStack and
+        // never removed them on child Dispose, leaking the entries for the
+        // lifetime of the parent. Scope-per-request apps would OOM eventually.
+        using var root = new Container();
+        for (var i = 0; i < 1000; i++)
+        {
+            using var scope = root.CreateChildContainer();
+            scope.RegisterInstance(i).AsSelf();
+        }
+        // After all child scopes have disposed, the root should not retain
+        // them. Create a fresh scope and confirm the count is 1, not 1001.
+        using var live = root.CreateChildContainer();
+        var field = typeof(Container).GetField("_children",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var children = (System.Collections.Concurrent.ConcurrentDictionary<Container, byte>)field.GetValue(root)!;
+        await Assert.That(children.Count).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task should_not_able_to_create_singleton_with_child_instance()
     {
         using var container = new Container();

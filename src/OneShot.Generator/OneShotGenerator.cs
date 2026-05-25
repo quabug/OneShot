@@ -63,8 +63,25 @@ public sealed class OneShotGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(combined, static (spc, model) =>
         {
+            foreach (var d in model.Diagnostics)
+                spc.ReportDiagnostic(ToDiagnostic(d));
             spc.AddSource(model.SafeName + ".g.cs", Emitter.Emit(model));
         });
+    }
+
+    private static Diagnostic ToDiagnostic(DiagnosticInfo info)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            info.Id, info.Title, info.Message,
+            category: "OneShot", DiagnosticSeverity.Warning, isEnabledByDefault: true);
+        var location = string.IsNullOrEmpty(info.FilePath)
+            ? Location.None
+            : Location.Create(info.FilePath,
+                new Microsoft.CodeAnalysis.Text.TextSpan(0, 0),
+                new Microsoft.CodeAnalysis.Text.LinePositionSpan(
+                    new Microsoft.CodeAnalysis.Text.LinePosition(info.StartLine, info.StartColumn),
+                    new Microsoft.CodeAnalysis.Text.LinePosition(info.EndLine, info.EndColumn)));
+        return Diagnostic.Create(descriptor, location);
     }
 
     private static bool IsCallSiteCandidate(SyntaxNode node)

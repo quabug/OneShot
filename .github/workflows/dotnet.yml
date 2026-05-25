@@ -33,8 +33,12 @@ jobs:
     - uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-    - name: Publish NativeAOT
+    # The publish step exercises every IL trim/AOT analyzer on OneShot's
+    # public surface - any new reflection without proper [RequiresDynamicCode]
+    # / [RequiresUnreferencedCode] annotations will fail it. That's the actual
+    # AOT-compatibility gate for the library. We don't try to *run* the
+    # resulting test binary because TUnit's runtime currently has AOT issues
+    # outside our control (the binary segfaults under AOT). A `continue-on-error`
+    # run-step would silently pass and obscure real publish regressions.
+    - name: Publish NativeAOT (gates IL trim/AOT analyzers)
       run: dotnet publish tests/OneShot.Tests -c Release
-    - name: Run NativeAOT binary
-      continue-on-error: true
-      run: ./tests/OneShot.Tests/bin/Release/net10.0/linux-x64/publish/OneShot.Tests

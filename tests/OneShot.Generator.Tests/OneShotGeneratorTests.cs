@@ -306,6 +306,99 @@ public class Service : BaseService, IService
     }
 
     [Test]
+    public async Task should_generate_for_closed_constructed_generic_call_site()
+    {
+        // Regression: TypeParameters.Length > 0 used to silently reject
+        // closed generics like Repository<int> because Roslyn returns the
+        // original definition's TypeParameters even on constructed symbols.
+        var source = @"
+using OneShot;
+
+public class Repository<T>
+{
+    public Repository(T value) { }
+}
+
+public class Setup
+{
+    void Configure(Container c)
+    {
+        c.Register<Repository<int>>();
+    }
+}";
+        var result = await RunGenerator(source);
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
+        var text = result.GeneratedTrees[0].GetText().ToString();
+        await Assert.That(text).Contains("new global::Repository<int>");
+    }
+
+    [Test]
+    public async Task should_skip_unbound_open_generic_definitions()
+    {
+        // Open generic definitions (Repository<>) can't be instantiated as-is.
+        // Only [Inject] on a member of the open definition triggers, and we
+        // skip it because the runtime needs a closed type.
+        var source = @"
+using OneShot;
+
+public class Repository<T>
+{
+    [Inject] public Repository() { }
+}";
+        var result = await RunGenerator(source);
+        // We DO generate for the closed-over usage if there is one, but the
+        // open definition itself shouldn't pollute the output.
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task should_warn_when_inject_on_readonly_property()
+    {
+        // ONESHOT001: silently skipping read-only [Inject] properties used to
+        // hide misconfigurations (v3 threw at runtime). Now it's a generator
+        // warning so the user sees it at build time.
+        var source = @"
+using OneShot;
+
+public class Service
+{
+    [Inject] public int ReadOnlyValue { get; }
+}";
+        var compilation = CreateCompilation(source);
+        var generator = new OneShotGenerator();
+        var driver = CSharpGeneratorDriver.Create(generator);
+        driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
+            compilation, out _, out var diagnostics);
+        var warnings = diagnostics.Where(d => d.Id == "ONESHOT001").ToArray();
+        await Assert.That(warnings.Length).IsEqualTo(1);
+        await Assert.That(warnings[0].GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("ReadOnlyValue");
+    }
+
+    [Test]
+    public async Task should_warn_when_multiple_inject_constructors()
+    {
+        // ONESHOT002: when two ctors are both marked [Inject] there's no rule
+        // for picking one. The previous v3 runtime threw via .Single(); the
+        // generator surfaces this at build time.
+        var source = @"
+using OneShot;
+
+public class Dep { }
+public class Service
+{
+    [Inject] public Service() { }
+    [Inject] public Service(Dep d) { }
+}";
+        var compilation = CreateCompilation(source);
+        var generator = new OneShotGenerator();
+        var driver = CSharpGeneratorDriver.Create(generator);
+        driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
+            compilation, out _, out var diagnostics);
+        var warnings = diagnostics.Where(d => d.Id == "ONESHOT002").ToArray();
+        await Assert.That(warnings.Length).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task should_not_generate_for_types_without_inject()
     {
         var source = @"
