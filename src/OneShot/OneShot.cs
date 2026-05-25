@@ -27,6 +27,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using JetBrains.Annotations;
 
 namespace OneShot;
 
@@ -286,6 +287,7 @@ public sealed class Container : IDisposable
     /// <param name="type">The type to register.</param>
     /// <param name="creator">Factory function to create instances.</param>
     /// <returns>A builder for configuring the registration.</returns>
+    [MustUseReturnValue]
     public WithBuilder Register(Type type, Func<Container, Type, object> creator)
     {
         return new WithBuilder(this, creator, type);
@@ -297,6 +299,7 @@ public sealed class Container : IDisposable
     /// <param name="type">The type to register.</param>
     /// <returns>A builder for configuring the registration.</returns>
     /// <exception cref="NotSupportedException">Thrown when the type has no generated type info.</exception>
+    [MustUseReturnValue]
     public WithBuilder Register(Type type)
     {
         if (!TypeInfoRegistry.TryGet(type, out var typeInfo))
@@ -328,6 +331,7 @@ public sealed class Container : IDisposable
     /// <typeparam name="T">The type to register.</typeparam>
     /// <param name="creator">Factory function to create instances.</param>
     /// <returns>A builder for configuring the registration.</returns>
+    [MustUseReturnValue]
     public WithBuilder Register<T>(Func<Container, Type, T> creator) where T : class
     {
         return Register(typeof(T), creator);
@@ -338,6 +342,7 @@ public sealed class Container : IDisposable
     /// </summary>
     /// <typeparam name="T">The type to register.</typeparam>
     /// <returns>A builder for configuring the registration.</returns>
+    [MustUseReturnValue]
     public WithBuilder Register<T>()
     {
         return Register(typeof(T));
@@ -349,6 +354,7 @@ public sealed class Container : IDisposable
     /// <typeparam name="T">The type of the instance.</typeparam>
     /// <param name="instance">The instance to register.</param>
     /// <returns>A builder for configuring the registration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder RegisterInstance<T>(T instance)
     {
         if (instance == null) throw new ArgumentNullException(nameof(instance));
@@ -654,6 +660,7 @@ public readonly ref struct LifetimeBuilder
     /// Configures the registration as transient (new instance per resolution).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Transient()
     {
         return new ResolverBuilder(Container, ConcreteType, Resolver.Func, ResolverLifetime.Transient);
@@ -663,6 +670,7 @@ public readonly ref struct LifetimeBuilder
     /// Configures the registration as singleton (single instance for container hierarchy).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Singleton()
     {
         var container = Container;
@@ -673,6 +681,7 @@ public readonly ref struct LifetimeBuilder
     }
 
     [Obsolete("use Scoped instead")]
+    [MustUseReturnValue]
     public ResolverBuilder Scope()
     {
         return Scoped();
@@ -682,6 +691,7 @@ public readonly ref struct LifetimeBuilder
     /// Configures the registration as scoped (single instance per scope/child container).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Scoped()
     {
         var containerCapture = Container;
@@ -784,6 +794,7 @@ public readonly ref struct WithBuilder
     /// Configures the registration as transient (new instance per resolution).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Transient()
     {
         return new ResolverBuilder(Container, ConcreteType, Resolver.Func, ResolverLifetime.Transient);
@@ -793,6 +804,7 @@ public readonly ref struct WithBuilder
     /// Configures the registration as singleton (single instance for container hierarchy).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Singleton()
     {
         var container = Container;
@@ -806,6 +818,7 @@ public readonly ref struct WithBuilder
     /// Configures the registration as scoped (single instance per scope/child container).
     /// </summary>
     /// <returns>A ResolverBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public ResolverBuilder Scoped()
     {
         var containerCapture = Container;
@@ -829,6 +842,7 @@ public readonly ref struct WithBuilder
     /// </summary>
     /// <param name="instances">Instances to inject into the constructor.</param>
     /// <returns>A LifetimeBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public LifetimeBuilder With(params object[] instances)
     {
         return WithImpl(instances.Select(instance => (instance, (Type?)null)));
@@ -839,6 +853,7 @@ public readonly ref struct WithBuilder
     /// </summary>
     /// <param name="labeledInstances">Labeled instances to inject into the constructor.</param>
     /// <returns>A LifetimeBuilder for further configuration.</returns>
+    [MustUseReturnValue]
     public LifetimeBuilder With(params (object instance, Type? label)[] labeledInstances)
     {
         return WithImpl(labeledInstances);
@@ -1060,6 +1075,7 @@ public static class GenericExtension
     /// <returns>A builder for further configuration.</returns>
     [RequiresDynamicCode("Open generic registration uses MakeGenericMethod at runtime.")]
     [RequiresUnreferencedCode("Open generic registration discovers methods at runtime via reflection.")]
+    [MustUseReturnValue]
     public static WithBuilder RegisterGeneric(this Container container, Type genericType, MethodInfo creator)
     {
         if (genericType is null) throw new ArgumentNullException(nameof(genericType));
