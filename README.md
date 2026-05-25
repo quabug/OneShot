@@ -16,8 +16,10 @@ A lightweight, high-performance dependency injection container for .NET with sou
 
 ## Requirements
 
-- **.NET**: 10.0 or higher
-- **C#**: 12.0 or higher
+- **Runtime library** (`OneShot`): netstandard2.1 — usable from any compatible TFM (net5.0+, Unity 2021 LTS+, etc.)
+- **Source generator** (`OneShot.Generator`): targets netstandard2.0 (Roslyn analyzer requirement); requires the host project's Roslyn to be 4.12 or newer (.NET 8 SDK / Visual Studio 17.10+)
+- **NativeAOT**: net8.0 or newer
+- **C# language version**: 14.0 (set in `Directory.Build.props`)
 
 ## Basic Concept of DI
 - [How YOU can Learn Dependency Injection in .NET Core and C#](https://softchris.github.io/pages/dotnet-di.html)
@@ -25,10 +27,14 @@ A lightweight, high-performance dependency injection container for .NET with sou
 
 ## Installation
 
-Install via [NuGet](https://www.nuget.org/packages/OneShot/):
+Both packages from [NuGet](https://www.nuget.org/packages/OneShot/):
+
 ```bash
-dotnet add package OneShot
+dotnet add package OneShot              # runtime container
+dotnet add package OneShot.Generator    # incremental source generator
 ```
+
+The generator is a separate package because it ships as a Roslyn analyzer (netstandard2.0). Without it, the container falls back to throwing `NotSupportedException` for any type it can't find in the registry — runtime reflection is not used at all.
 
 ## Quick Start
 
@@ -71,18 +77,36 @@ class MyService
 ```
 
 ### Runtime Registration
-When using runtime `Register(Type)` with a variable type, the source generator cannot discover the type from call sites. Ensure the type is referenced via `Register<T>()` or `Instantiate<T>()` somewhere (even in a never-called method), or has `[Inject]` on a member:
+When you call `Register(Type)` with a `Type` known only at runtime, the source generator has no syntactic site to scan from. Make sure the type is also referenced from a generic call site somewhere in the assembly (even in dead code), or carries `[Inject]` on at least one member:
 
 ```csharp
 // This alone won't trigger source generation:
 container.Register(someType);
 
-// Add a manifest method to ensure generation:
-static void _SourceGenManifest(Container c)
+// Add a manifest method to anchor generation. The method never has to be called -
+// the generator only cares about the call sites' syntax.
+file static class _SourceGenManifest
 {
-    c.Register<MyType>();  // Triggers generation even though never called
+    static void Anchor(Container c)
+    {
+        c.Register<MyType>();   // generator sees this and emits ITypeInfo for MyType
+        c.Register<OtherType>();
+    }
 }
 ```
+
+## NativeAOT compatibility
+
+The runtime library is annotated so the AOT analyzer can tell callers which APIs are safe under trimming:
+
+| API | AOT status |
+| --- | --- |
+| `Register<T>()` / `Instantiate<T>()` + `[Inject]`-driven constructor/field/property/method injection | Fully AOT-safe — flows through the source generator with no warnings |
+| `GenericExtension.RegisterGeneric(Type, MethodInfo)` | `[RequiresDynamicCode]` + `[RequiresUnreferencedCode]` — callers get warnings |
+| `LabelExtension.CreateLabelType` | `[RequiresDynamicCode]` — callers get warnings |
+| `Container.TryResolve` (label or array path), `ResolverBuilder.As(contractType, label)` | Suppressed at the boundary; the `MakeGenericType` / `Array.CreateInstance` paths only fire when you opt in by passing a label or resolving an array type. No analyzer warnings, but callers using those code paths are responsible for keeping the requested types reachable for the trimmer. |
+
+When publishing with `PublishAot=true`, the only diagnostics you'll see come from `RegisterGeneric` and explicit `CreateLabelType` calls — typical apps that stick to `Register<T>()` / `Instantiate<T>()` build clean.
 
 ## Core Usage
 
@@ -148,7 +172,8 @@ container.Register<Func<int>>((container, type) => () => 42).AsSelf();
 // With specific constructor parameters
 container.Register<Service>().With("config", 123).AsSelf();
 
-// Generic type registration
+// Generic type registration. Uses MakeGenericMethod at runtime, so this API is
+// annotated [RequiresDynamicCode]/[RequiresUnreferencedCode] - not AOT-friendly.
 container.RegisterGeneric(typeof(Repository<>), CreateRepository).AsSelf();
 ```
 
@@ -257,8 +282,17 @@ dotnet build
 ```
 
 ### Test
+
+Tests use [TUnit](https://github.com/thomhurst/TUnit), which compiles into a self-running executable. Run them with `dotnet run`, not `dotnet test`:
+
 ```bash
-dotnet test
+dotnet run --project tests/OneShot.Tests              # runtime container tests (75 tests)
+dotnet run --project tests/OneShot.Generator.Tests    # generator snapshot tests (14 tests)
+```
+
+### NativeAOT smoke test
+```bash
+dotnet publish tests/OneShot.Tests -c Release         # publishes a NativeAOT binary; CI runs this
 ```
 
 ### Benchmarks
