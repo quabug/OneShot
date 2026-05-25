@@ -10,39 +10,63 @@ namespace OneShot.Generator;
 #pragma warning disable RS1024 // Symbols should be compared for equality
 
 // ===== Models =====
+//
+// Note on ImmutableArray equality: ImmutableArray<T>.Equals uses reference equality,
+// not structural. The incremental generator pipeline caches and dedupes results by
+// value, so any model carrying ImmutableArray<> overrides Equals/GetHashCode to use
+// SequenceEqual. Pure value models (no collections) keep the auto-generated record
+// equality.
 
-internal sealed class TypeModel : IEquatable<TypeModel>
+internal readonly record struct ParameterModel(
+    string TypeFqn,
+    string Name,
+    string? LabelFqn,
+    bool HasDefault,
+    string? DefaultExpr);
+
+internal readonly record struct InjectFieldModel(
+    string Name,
+    string TypeFqn,
+    string? LabelFqn,
+    bool NeedsUnsafeAccessor);
+
+internal readonly record struct InjectPropertyModel(
+    string Name,
+    string TypeFqn,
+    string? LabelFqn,
+    bool NeedsUnsafeAccessor);
+
+internal readonly record struct ConstructorModel(ImmutableArray<ParameterModel> Parameters)
 {
-    public string FullyQualifiedName { get; }
-    public string SafeName { get; }
-    public bool IsValueType { get; }
-    public ConstructorModel? Constructor { get; }
-    public ImmutableArray<InjectFieldModel> Fields { get; }
-    public ImmutableArray<InjectPropertyModel> Properties { get; }
-    public ImmutableArray<InjectMethodModel> Methods { get; }
-    public ImmutableArray<string> Interfaces { get; }
-    public ImmutableArray<string> BaseTypes { get; }
+    public bool Equals(ConstructorModel other) => Parameters.SequenceEqual(other.Parameters);
+    public override int GetHashCode() => Parameters.Length;
+}
 
-    public TypeModel(
-        string fullyQualifiedName, string safeName, bool isValueType,
-        ConstructorModel? constructor,
-        ImmutableArray<InjectFieldModel> fields,
-        ImmutableArray<InjectPropertyModel> properties,
-        ImmutableArray<InjectMethodModel> methods,
-        ImmutableArray<string> interfaces,
-        ImmutableArray<string> baseTypes)
-    {
-        FullyQualifiedName = fullyQualifiedName;
-        SafeName = safeName;
-        IsValueType = isValueType;
-        Constructor = constructor;
-        Fields = fields;
-        Properties = properties;
-        Methods = methods;
-        Interfaces = interfaces;
-        BaseTypes = baseTypes;
-    }
+internal readonly record struct InjectMethodModel(
+    string Name,
+    string ReturnTypeFqn,
+    ImmutableArray<ParameterModel> Parameters,
+    bool NeedsUnsafeAccessor)
+{
+    public bool Equals(InjectMethodModel other) =>
+        Name == other.Name && ReturnTypeFqn == other.ReturnTypeFqn &&
+        NeedsUnsafeAccessor == other.NeedsUnsafeAccessor &&
+        Parameters.SequenceEqual(other.Parameters);
 
+    public override int GetHashCode() => Name.GetHashCode();
+}
+
+internal sealed record TypeModel(
+    string FullyQualifiedName,
+    string SafeName,
+    bool IsValueType,
+    ConstructorModel? Constructor,
+    ImmutableArray<InjectFieldModel> Fields,
+    ImmutableArray<InjectPropertyModel> Properties,
+    ImmutableArray<InjectMethodModel> Methods,
+    ImmutableArray<string> Interfaces,
+    ImmutableArray<string> BaseTypes)
+{
     public bool Equals(TypeModel? other)
     {
         if (other is null) return false;
@@ -50,7 +74,7 @@ internal sealed class TypeModel : IEquatable<TypeModel>
         return FullyQualifiedName == other.FullyQualifiedName
             && SafeName == other.SafeName
             && IsValueType == other.IsValueType
-            && Equals(Constructor, other.Constructor)
+            && Nullable.Equals(Constructor, other.Constructor)
             && Fields.SequenceEqual(other.Fields)
             && Properties.SequenceEqual(other.Properties)
             && Methods.SequenceEqual(other.Methods)
@@ -58,118 +82,7 @@ internal sealed class TypeModel : IEquatable<TypeModel>
             && BaseTypes.SequenceEqual(other.BaseTypes);
     }
 
-    public override bool Equals(object? obj) => Equals(obj as TypeModel);
     public override int GetHashCode() => FullyQualifiedName.GetHashCode();
-}
-
-internal readonly struct ConstructorModel : IEquatable<ConstructorModel>
-{
-    public ImmutableArray<ParameterModel> Parameters { get; }
-
-    public ConstructorModel(ImmutableArray<ParameterModel> parameters)
-    {
-        Parameters = parameters;
-    }
-
-    public bool Equals(ConstructorModel other) => Parameters.SequenceEqual(other.Parameters);
-    public override bool Equals(object? obj) => obj is ConstructorModel o && Equals(o);
-    public override int GetHashCode() => Parameters.Length;
-}
-
-internal readonly struct ParameterModel : IEquatable<ParameterModel>
-{
-    public string TypeFqn { get; }
-    public string Name { get; }
-    public string? LabelFqn { get; }
-    public bool HasDefault { get; }
-    public string? DefaultExpr { get; }
-
-    public ParameterModel(string typeFqn, string name, string? labelFqn, bool hasDefault, string? defaultExpr)
-    {
-        TypeFqn = typeFqn;
-        Name = name;
-        LabelFqn = labelFqn;
-        HasDefault = hasDefault;
-        DefaultExpr = defaultExpr;
-    }
-
-    public bool Equals(ParameterModel other) =>
-        TypeFqn == other.TypeFqn && Name == other.Name &&
-        LabelFqn == other.LabelFqn && HasDefault == other.HasDefault &&
-        DefaultExpr == other.DefaultExpr;
-
-    public override bool Equals(object? obj) => obj is ParameterModel o && Equals(o);
-    public override int GetHashCode() => TypeFqn.GetHashCode();
-}
-
-internal readonly struct InjectFieldModel : IEquatable<InjectFieldModel>
-{
-    public string Name { get; }
-    public string TypeFqn { get; }
-    public string? LabelFqn { get; }
-    public bool NeedsUnsafeAccessor { get; }
-
-    public InjectFieldModel(string name, string typeFqn, string? labelFqn, bool needsUnsafeAccessor)
-    {
-        Name = name;
-        TypeFqn = typeFqn;
-        LabelFqn = labelFqn;
-        NeedsUnsafeAccessor = needsUnsafeAccessor;
-    }
-
-    public bool Equals(InjectFieldModel other) =>
-        Name == other.Name && TypeFqn == other.TypeFqn &&
-        LabelFqn == other.LabelFqn && NeedsUnsafeAccessor == other.NeedsUnsafeAccessor;
-
-    public override bool Equals(object? obj) => obj is InjectFieldModel o && Equals(o);
-    public override int GetHashCode() => Name.GetHashCode();
-}
-
-internal readonly struct InjectPropertyModel : IEquatable<InjectPropertyModel>
-{
-    public string Name { get; }
-    public string TypeFqn { get; }
-    public string? LabelFqn { get; }
-    public bool NeedsUnsafeAccessor { get; }
-
-    public InjectPropertyModel(string name, string typeFqn, string? labelFqn, bool needsUnsafeAccessor)
-    {
-        Name = name;
-        TypeFqn = typeFqn;
-        LabelFqn = labelFqn;
-        NeedsUnsafeAccessor = needsUnsafeAccessor;
-    }
-
-    public bool Equals(InjectPropertyModel other) =>
-        Name == other.Name && TypeFqn == other.TypeFqn &&
-        LabelFqn == other.LabelFqn && NeedsUnsafeAccessor == other.NeedsUnsafeAccessor;
-
-    public override bool Equals(object? obj) => obj is InjectPropertyModel o && Equals(o);
-    public override int GetHashCode() => Name.GetHashCode();
-}
-
-internal readonly struct InjectMethodModel : IEquatable<InjectMethodModel>
-{
-    public string Name { get; }
-    public string ReturnTypeFqn { get; }
-    public ImmutableArray<ParameterModel> Parameters { get; }
-    public bool NeedsUnsafeAccessor { get; }
-
-    public InjectMethodModel(string name, string returnTypeFqn, ImmutableArray<ParameterModel> parameters, bool needsUnsafeAccessor)
-    {
-        Name = name;
-        ReturnTypeFqn = returnTypeFqn;
-        Parameters = parameters;
-        NeedsUnsafeAccessor = needsUnsafeAccessor;
-    }
-
-    public bool Equals(InjectMethodModel other) =>
-        Name == other.Name && ReturnTypeFqn == other.ReturnTypeFqn &&
-        Parameters.SequenceEqual(other.Parameters) &&
-        NeedsUnsafeAccessor == other.NeedsUnsafeAccessor;
-
-    public override bool Equals(object? obj) => obj is InjectMethodModel o && Equals(o);
-    public override int GetHashCode() => Name.GetHashCode();
 }
 
 // ===== Extraction =====
