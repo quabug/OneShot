@@ -2,12 +2,14 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace OneShot.Test;
 
+[SuppressMessage("Sonar", "S3257",
+    Justification = "Factory callbacks document the (Container, Type) signature; discards lose that intent.")]
 public class TestOneShot
 {
     [Test]
     public async Task should_not_able_to_register_invalid_type()
     {
-        var container = new Container();
+        using var container = new Container();
         await Assert.That(() => container.Register<InterfaceA>()).ThrowsException();
         await Assert.That(() => container.Register<ComplexClass>().As<TypeA>()).ThrowsException();
     }
@@ -15,7 +17,7 @@ public class TestOneShot
     [Test]
     public async Task should_able_to_register_and_resolve_interface()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf().As<InterfaceA>();
         await Assert.That(container.Resolve<InterfaceA>()).IsSameReferenceAs(instance);
@@ -24,7 +26,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_by_default_constructor()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
@@ -34,7 +36,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_by_marked_constructor()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf();
         container.Register<InjectConstructor>().Singleton().AsSelf();
@@ -44,7 +46,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_by_constructor_with_default_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf();
         container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
@@ -55,13 +57,13 @@ public class TestOneShot
     [Test]
     public async Task should_resolve_complex_type()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.RegisterInstance(typeA).AsSelf().As<InterfaceA>();
         container.Register<InjectConstructor>().AsSelf();
         container.Register<ConstructorWithDefaultParameter>().Singleton().AsSelf();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
-        container.Register<Func<int>>((_, _) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+        container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
         container.Register<ComplexClass>().AsSelf();
         var complex1 = container.Resolve<ComplexClass>();
         await Assert.That(complex1.A).IsSameReferenceAs(typeA);
@@ -90,18 +92,18 @@ public class TestOneShot
     [Test]
     public async Task should_able_to_register_and_resolve_func()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new TypeA();
         container.RegisterInstance(instance).AsSelf();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
-        container.Register<Func<int>>((_, _) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
+        container.Register<Func<int>>((c, t) => container.Resolve<DefaultConstructor>().GetIntValue).AsSelf();
         await Assert.That(container.Resolve<Func<int>>()()).IsEqualTo(100);
     }
 
     [Test]
     public async Task should_override_register()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(10).AsSelf();
         container.RegisterInstance(20).AsSelf();
         await Assert.That(container.Resolve<int>()).IsEqualTo(20);
@@ -110,7 +112,7 @@ public class TestOneShot
     [Test]
     public async Task should_throw_if_cannot_resolve()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<DefaultConstructor>().Singleton().AsSelf();
         await Assert.That(() => container.Resolve<TypeA>()).ThrowsException();
         await Assert.That(() => container.Resolve<DefaultConstructor>()).ThrowsException();
@@ -155,7 +157,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_marked_members()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance<int>(10).AsSelf();
         container.RegisterInstance<float>(100f).AsSelf();
         container.RegisterInstance<double>(0.999).AsSelf();
@@ -174,14 +176,14 @@ public class TestOneShot
     [Test]
     public async Task should_throw_if_not_able_to_inject()
     {
-        var container = new Container();
+        using var container = new Container();
         await Assert.That(() => container.InjectAll(new Injected())).ThrowsException();
     }
 
     [Test]
     public async Task should_inject_and_call_function()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(10).AsSelf();
         await Assert.That(container.CallFunc<Func<int, int>>(v => v * 2)).IsEqualTo(20);
     }
@@ -189,7 +191,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_and_call_func_with_default_argument()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(100).AsSelf();
         await Assert.That(container.CallFunc<Func<int, float, float>>(AddFunc)).IsEqualTo(200f);
     }
@@ -199,7 +201,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_and_call_action()
     {
-        var container = new Container();
+        using var container = new Container();
         var intValue = 0;
         container.RegisterInstance(10).AsSelf();
         container.CallAction<Action<int>>(value => intValue = value * 2);
@@ -209,7 +211,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_and_call_action_with_default_argument()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(10).AsSelf();
         container.CallAction<Action<int, float>>(AddAction);
         await Assert.That(_value).IsEqualTo(30f);
@@ -221,7 +223,7 @@ public class TestOneShot
     [Test]
     public async Task should_instantiate_by_type()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<TypeA>().Singleton().AsSelf();
         await Assert.That(container.Instantiate<DefaultConstructor>().TypeA).IsEqualTo(container.Resolve<TypeA>());
     }
@@ -243,11 +245,11 @@ public class TestOneShot
         Justification = "TUnit's IsEquivalentTo uses reflection for structural comparison; the test only compares int arrays which are trim-safe in practice.")]
     public async Task should_resolve_group_of_type()
     {
-        var container = new Container();
-        var child1 = container.CreateChildContainer();
-        var child11 = child1.CreateChildContainer();
-        var child12 = child1.CreateChildContainer();
-        var child2 = container.CreateChildContainer();
+        using var container = new Container();
+        using var child1 = container.CreateChildContainer();
+        using var child11 = child1.CreateChildContainer();
+        using var child12 = child1.CreateChildContainer();
+        using var child2 = container.CreateChildContainer();
 
         await Assert.That(container.ResolveGroup<int>()).IsEmpty();
 
@@ -288,7 +290,7 @@ public class TestOneShot
     [Test]
     public async Task should_able_to_inject_without_resolve()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<TypeA>().Singleton().AsInterfaces();
         await Assert.That(() => container.InjectAll(new InjectMethod())).ThrowsNothing();
     }
@@ -305,7 +307,7 @@ public class TestOneShot
     [Test]
     public void should_inject_method_to_same_instance_repeatedly()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<TypeA>().AsSelf();
         var instance = new InjectTypeA();
         container.InjectAll(instance);
@@ -324,7 +326,7 @@ public class TestOneShot
     [Test]
     public async Task should_register_and_resolve_by_bases()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<TypeAAA>().AsBases();
         await Assert.That(container.Resolve<TypeAA>()).IsTypeOf<TypeAAA>();
         await Assert.That(container.Resolve<TypeA>()).IsTypeOf<TypeAAA>();
@@ -343,7 +345,7 @@ public class TestOneShot
     [Test]
     public async Task should_inject_all_for_instance_by_contract_type()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(123).AsSelf();
         container.RegisterInstance(222.222f).AsSelf();
         var instance = new InjectIntFloat();
@@ -355,21 +357,21 @@ public class TestOneShot
     [Test]
     public async Task should_get_null_if_try_resolved_type_not_registered()
     {
-        var container = new Container();
+        using var container = new Container();
         await Assert.That(container.TryResolve<int>()).IsNull();
     }
 
     [Test]
     public async Task should_check_registered_of_a_type()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(123).AsSelf();
         await Assert.That(container.IsRegisteredInHierarchy<int>()).IsTrue();
         await Assert.That(container.IsRegisteredInHierarchy<float>()).IsFalse();
         await Assert.That(container.IsRegistered<int>()).IsTrue();
         await Assert.That(container.IsRegistered<float>()).IsFalse();
 
-        var child = container.CreateChildContainer();
+        using var child = container.CreateChildContainer();
         await Assert.That(child.IsRegisteredInHierarchy<int>()).IsTrue();
         await Assert.That(child.IsRegisteredInHierarchy<float>()).IsFalse();
         await Assert.That(child.IsRegistered<int>()).IsFalse();

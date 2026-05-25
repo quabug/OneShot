@@ -37,7 +37,7 @@ public class TestLabel
     [Test]
     public async Task should_make_instance_by_label()
     {
-        var container = new Container();
+        using var container = new Container();
 
         var foo = new Foo();
         var labeledFoo = new Foo();
@@ -61,7 +61,7 @@ public class TestLabel
     [Test]
     public async Task should_make_instance_by_labeled_additional_instances()
     {
-        var container = new Container();
+        using var container = new Container();
         var foo = new Foo();
         var labeledFoo = new Foo();
         var anyLabeledFoo = new Foo();
@@ -76,7 +76,7 @@ public class TestLabel
     [Test]
     public async Task should_inject_labeled_instances()
     {
-        var container = new Container();
+        using var container = new Container();
 
         var foo = new Foo();
         var labeledFoo = new Foo();

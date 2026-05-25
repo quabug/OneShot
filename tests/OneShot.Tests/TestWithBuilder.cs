@@ -27,7 +27,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_singleton_instance_with_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.Register<Foo>().With(typeA, 1, 123f).Singleton().AsSelf();
         var instance = container.Resolve<Foo>();
@@ -40,7 +40,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_singleton_instance_with_partial_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.RegisterInstance(123f).AsSelf();
         container.Register<Foo>().With(typeA, 1).Singleton().AsSelf();
@@ -54,7 +54,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_singleton_instance_with_partial_and_override_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.RegisterInstance(100).AsSelf();
         container.RegisterInstance(123f).AsSelf();
@@ -69,7 +69,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_transient_instance_with_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.Register<Foo>().With(typeA, 1, 123f).Transient().AsSelf();
         var instance = container.Resolve<Foo>();
@@ -82,7 +82,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_transient_instance_with_partial_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.RegisterInstance(1).AsSelf();
         container.Register<Foo>().With(typeA, 123f).Transient().AsSelf();
@@ -96,7 +96,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_transient_instance_with_partial_and_override_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.RegisterInstance(456f).AsSelf();
         container.RegisterInstance(1).AsSelf();
@@ -111,7 +111,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_scoped_instance_with_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         var typeA = new TypeA();
         container.Register<Foo>().With(typeA, 1, 123f).Scoped().AsSelf();
         var instance = container.Resolve<Foo>();
@@ -130,7 +130,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_scoped_instance_with_partial_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<TypeA>().Singleton().AsInterfaces();
         container.Register<Foo>().With(1, 123f).Scoped().AsSelf();
         var typeA = container.Resolve<InterfaceA>();
@@ -150,7 +150,7 @@ public class TestWithBuilder
     [Test]
     public async Task should_create_scoped_instance_with_partial_and_override_additional_parameters()
     {
-        var container = new Container();
+        using var container = new Container();
         container.RegisterInstance(100).AsSelf();
         container.RegisterInstance(666f).AsSelf();
         container.Register<TypeA>().Singleton().AsInterfaces();

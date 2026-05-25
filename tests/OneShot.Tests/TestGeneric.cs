@@ -30,7 +30,7 @@ public class TestGeneric
     [MethodDataSource(nameof(GenericArguments))]
     public async Task should_make_instance_of_generic(Type type)
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register(typeof(Generic<>), (_, t) => Activator.CreateInstance(typeof(Generic<>).MakeGenericType(t.GetGenericArguments()))).As(typeof(Generic<>));
         container.Register(typeof(Generic<,>), (_, t) => Activator.CreateInstance(typeof(Generic<,>).MakeGenericType(t.GetGenericArguments()))).As(typeof(Generic<,>));
         await Assert.That(container.Resolve(type).GetType()).IsEqualTo(type);
@@ -44,7 +44,7 @@ public class TestGeneric
     [MethodDataSource(nameof(GenericArguments))]
     public async Task should_make_instance_of_generic_with_label(Type type)
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register(typeof(Generic<>), (_, t) => Activator.CreateInstance(typeof(Generic<>).MakeGenericType(t.GetGenericArguments()))).As(typeof(Generic<>), typeof(Label<>));
         container.Register(typeof(Generic<,>), (_, t) => Activator.CreateInstance(typeof(Generic<,>).MakeGenericType(t.GetGenericArguments()))).As(typeof(Generic<,>), typeof(Label<>));
         await Assert.That(() => container.Resolve(type)).ThrowsException();
@@ -54,7 +54,7 @@ public class TestGeneric
     [Test]
     public async Task should_make_instance_of_concrete_generic()
     {
-        var container = new Container();
+        using var container = new Container();
         var instance = new Generic<int>();
         container.RegisterInstance(instance).As<Generic<int>>();
         await Assert.That(container.Resolve<Generic<int>>()).IsSameReferenceAs(instance);
@@ -68,7 +68,7 @@ public class TestGeneric
     [Test]
     public async Task should_register_and_resolve_generic_type_by_method_name()
     {
-        var container = new Container();
+        using var container = new Container();
         var creator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic);
         container.RegisterGeneric(typeof(Lazy<>), creator).With(123).AsSelf();
         await Assert.That(container.Resolve<Lazy<int>>().Value).IsEqualTo(123);
@@ -91,7 +91,7 @@ public class TestGeneric
     [Test]
     public async Task should_register_and_resolve_generic_with_multiple_type_parameters_by_method_name()
     {
-        var container = new Container();
+        using var container = new Container();
         var creator = GetType().GetMethod(nameof(CreateGeneric), BindingFlags.Static | BindingFlags.NonPublic);
         container.RegisterGeneric(typeof(Generic<,>), creator).AsSelf();
         await Assert.That(container.Resolve<Generic<int, float>>()).IsNotNull();
@@ -100,7 +100,7 @@ public class TestGeneric
     [Test]
     public async Task should_throw_exception_if_creator_is_not_valid()
     {
-        var container = new Container();
+        using var container = new Container();
         await Assert.That(() => container.RegisterGeneric(typeof(Generic<,>), null).AsSelf()).ThrowsExactly<ArgumentNullException>();
 
         var lazyCreator = GetType().GetMethod(nameof(CreateLazy), BindingFlags.Static | BindingFlags.NonPublic);

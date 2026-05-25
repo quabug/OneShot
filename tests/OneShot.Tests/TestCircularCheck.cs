@@ -19,7 +19,7 @@ public class TestCircularCheck
     [Test]
     public async Task should_throw_on_directly_circular_dependency()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<A>().AsSelf();
         container.Register<B>().AsSelf();
         await Assert.That(() => container.Resolve<A>()).ThrowsExactly<CircularDependencyException>();
@@ -50,7 +50,7 @@ public class TestCircularCheck
     [Test]
     public async Task should_throw_on_indirectly_circular_dependency()
     {
-        var container = new Container();
+        using var container = new Container();
         container.Register<C>().AsSelf();
         container.Register<D>().AsSelf();
         container.Register<E>().AsSelf();

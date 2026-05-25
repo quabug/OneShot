@@ -1,22 +1,32 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 
 namespace OneShot.Test;
 
 public class TestMultiThread
 {
     long _threadCount = 100;
-    private Type[] _types;
 
-    [Before(HookType.Test)]
-    [UnconditionalSuppressMessage("Trimming", "IL2075",
-        Justification = "Test discovers nested types via reflection; all nested fixtures are referenced from this assembly.")]
-    public void SetUp()
+    // Stress-test fixtures. The list pulls double duty: the worker thread picks
+    // a random Type and registers it via the non-generic Container.Register(Type)
+    // overload, but that overload requires generated ITypeInfo in the registry.
+    // The SourceGenManifest method below is what anchors the source generator -
+    // it's never called, just scanned syntactically for Register<T>() call sites.
+    private static readonly Type[] s_types =
+    [
+        typeof(A), typeof(B), typeof(C), typeof(D),
+        typeof(E), typeof(F), typeof(G), typeof(H),
+        typeof(AB), typeof(ABC), typeof(ABCD),
+        typeof(BCD), typeof(FG), typeof(CDEF),
+    ];
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051",
+        Justification = "Never invoked; the source generator scans the Register<T>() calls to emit ITypeInfo for these fixtures.")]
+    private static void SourceGenManifest(Container c)
     {
-        _types = GetType().GetNestedTypes(BindingFlags.NonPublic)
-            .Where(type => !type.IsInterface && !type.Name.StartsWith("<", StringComparison.Ordinal))
-            .ToArray();
+        c.Register<A>(); c.Register<B>(); c.Register<C>(); c.Register<D>();
+        c.Register<E>(); c.Register<F>(); c.Register<G>(); c.Register<H>();
+        c.Register<AB>(); c.Register<ABC>(); c.Register<ABCD>();
+        c.Register<BCD>(); c.Register<FG>(); c.Register<CDEF>();
     }
 
     [Test]
@@ -26,7 +36,7 @@ public class TestMultiThread
         Console.WriteLine($"workers = {workerThreads}, ports = {completionPortThreads}");
         var count = _threadCount;
 
-        var root = new Container();
+        using var root = new Container();
 
         for (var i = 0; i < count; i++) new Thread(Run) { Name = $"Thread{i + 1}" }.Start(root);
 
@@ -51,7 +61,7 @@ public class TestMultiThread
             var watch = Stopwatch.StartNew();
             while (watch.ElapsedMilliseconds < time)
             {
-                var type = _types[rnd.Next(_types.Length)];
+                var type = s_types[rnd.Next(s_types.Length)];
                 switch (rnd.Next(3))
                 {
                     case 0:
@@ -73,7 +83,7 @@ public class TestMultiThread
             watch.Restart();
             while (watch.ElapsedMilliseconds < time)
             {
-                var type = _types[rnd.Next(_types.Length)];
+                var type = s_types[rnd.Next(s_types.Length)];
                 try
                 {
                     Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}: resolve {type}");
@@ -96,15 +106,6 @@ public class TestMultiThread
             var count = Interlocked.Decrement(ref _threadCount);
             Console.WriteLine($"{Thread.CurrentThread.Name} count={count}");
         }
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051")]
-    static void _SourceGenManifest(Container c)
-    {
-        c.Register<A>(); c.Register<B>(); c.Register<C>(); c.Register<D>();
-        c.Register<E>(); c.Register<F>(); c.Register<G>(); c.Register<H>();
-        c.Register<AB>(); c.Register<ABC>(); c.Register<ABCD>();
-        c.Register<BCD>(); c.Register<FG>(); c.Register<CDEF>();
     }
 
     internal interface IA
